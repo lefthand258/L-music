@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lyra Music</string>
+
+    <!-- Navigation -->
+    <string name="nav_songs">Songs</string>
+    <string name="nav_albums">Albums</string>
+    <string name="nav_artists">Artists</string>
+    <string name="nav_playlists">Playlists</string>
+    <string name="nav_folders">Folders</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Permissions -->
+    <string name="perm_title">Lyra needs access to your music</string>
+    <string name="perm_audio_rationale">To list and play the songs stored on this phone, Lyra needs permission to read audio files.</string>
+    <string name="perm_grant">Grant access</string>
+    <string name="perm_open_settings">Open app settings</string>
+    <string name="perm_all_files_title">Write tags &amp; organise files</string>
+    <string name="perm_all_files_rationale">Writing song information back into files and moving files into folders requires \"All files access\". You can skip this and enable it later in Settings.</string>
+    <string name="perm_battery_title">Keep playing in the background</string>
+    <string name="perm_battery_rationale">OriginOS may stop background playback. Please allow Lyra to ignore battery optimisation and set it to \"Allow background high power consumption\".</string>
+    <string name="skip">Skip</string>
+
+    <!-- Library -->
+    <string name="library_empty">No songs found</string>
+    <string name="library_scan">Scan library</string>
+    <string name="library_scanning">Scanning…</string>
+    <string name="library_scan_done">Found %1$d songs</string>
+    <string name="songs_count">%1$d songs</string>
+    <string name="unknown_artist">Unknown artist</string>
+    <string name="unknown_album">Unknown album</string>
+    <string name="unknown_title">Unknown title</string>
+    <string name="search_hint">Search songs, artists, albums</string>
+    <string name="sort">Sort</string>
+    <string name="shuffle_all">Shuffle all</string>
+    <string name="play_all">Play all</string>
+
+    <!-- Player -->
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="skip_next">Next</string>
+    <string name="skip_previous">Previous</string>
+    <string name="repeat_off">Repeat off</string>
+    <string name="repeat_all">Repeat all</string>
+    <string name="repeat_one">Repeat one</string>
+    <string name="shuffle_on">Shuffle on</string>
+    <string name="shuffle_off">Shuffle off</string>
+    <string name="now_playing">Now playing</string>
+    <string name="queue">Queue</string>
+    <string name="lyrics">Lyrics</string>
+    <string name="lyrics_none">No lyrics</string>
+    <string name="audio_info_format">%1$s · %2$d-bit · %3$s kHz · %4$d ch</string>
+    <string name="dsp_active">DSP active</string>
+    <string name="bit_perfect">Bit-perfect</string>
+
+    <string name="notification_channel_playback">Playback</string>
+    <string name="notification_channel_playback_desc">Media playback controls</string>
+
+    <string name="action_add_to_playlist">Add to playlist</string>
+    <string name="action_play_next">Play next</string>
+    <string name="action_add_to_queue">Add to queue</string>
+    <string name="action_song_info">Song info</string>
+    <string name="action_remove_from_library">Remove from Lyra</string>
+    <string name="action_delete_file">Delete file from phone</string>
+    <string name="action_identify">Identify online</string>
+</resources>

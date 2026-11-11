@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simple original lyre-ish mark: two curved arms and strings -->
+    <path
+        android:fillColor="#F5C66B"
+        android:pathData="M38,30 C30,38 30,62 40,74 L44,71 C36,61 36,41 42,34 Z" />
+    <path
+        android:fillColor="#F5C66B"
+        android:pathData="M70,30 C78,38 78,62 68,74 L64,71 C72,61 72,41 66,34 Z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:pathData="M46,40 L46,72 M51,40 L51,72 M57,40 L57,72 M62,40 L62,72" />
+    <path
+        android:fillColor="#F5C66B"
+        android:pathData="M40,74 L68,74 L68,79 L40,79 Z" />
+</vector>

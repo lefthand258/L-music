@@ -1,0 +1,79 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0 platform-tools'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Build release APK
+        env:
+          LYRA_KEYSTORE_PATH: ${{ secrets.LYRA_KEYSTORE_BASE64 != '' && 'lyra-release.jks' || '' }}
+          LYRA_KEYSTORE_PASSWORD: ${{ secrets.LYRA_KEYSTORE_PASSWORD }}
+          LYRA_KEY_ALIAS: ${{ secrets.LYRA_KEY_ALIAS }}
+          LYRA_KEY_PASSWORD: ${{ secrets.LYRA_KEY_PASSWORD }}
+        run: |
+          if [ -n "${{ secrets.LYRA_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.LYRA_KEYSTORE_BASE64 }}" | base64 -d > app/lyra-release.jks
+            export LYRA_KEYSTORE_PATH="$PWD/app/lyra-release.jks"
+          fi
+          ./gradlew assembleRelease --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: lyra-music-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: lyra-music-release
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+
+      - name: Attach APKs to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk

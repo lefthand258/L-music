@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lyra 音乐</string>
+
+    <string name="nav_songs">歌曲</string>
+    <string name="nav_albums">专辑</string>
+    <string name="nav_artists">艺术家</string>
+    <string name="nav_playlists">歌单</string>
+    <string name="nav_folders">文件夹</string>
+    <string name="nav_settings">设置</string>
+
+    <string name="perm_title">Lyra 需要访问你的音乐</string>
+    <string name="perm_audio_rationale">为了列出并播放手机里的歌曲，Lyra 需要读取音频文件的权限。</string>
+    <string name="perm_grant">授予权限</string>
+    <string name="perm_open_settings">打开应用设置</string>
+    <string name="perm_all_files_title">写回标签与整理文件</string>
+    <string name="perm_all_files_rationale">把歌曲信息写回文件、以及自动整理文件夹，需要「所有文件访问」权限。可以先跳过，之后在设置里开启。</string>
+    <string name="perm_battery_title">后台持续播放</string>
+    <string name="perm_battery_rationale">OriginOS 可能会中止后台播放。请允许 Lyra 忽略电池优化，并在「电池 → 后台耗电管理」中设为「允许后台高耗电」。</string>
+    <string name="skip">跳过</string>
+
+    <string name="library_empty">没有找到歌曲</string>
+    <string name="library_scan">扫描曲库</string>
+    <string name="library_scanning">正在扫描…</string>
+    <string name="library_scan_done">找到 %1$d 首歌曲</string>
+    <string name="songs_count">%1$d 首</string>
+    <string name="unknown_artist">未知艺术家</string>
+    <string name="unknown_album">未知专辑</string>
+    <string name="unknown_title">未知标题</string>
+    <string name="search_hint">搜索歌曲、艺术家、专辑</string>
+    <string name="sort">排序</string>
+    <string name="shuffle_all">随机播放全部</string>
+    <string name="play_all">播放全部</string>
+
+    <string name="play">播放</string>
+    <string name="pause">暂停</string>
+    <string name="skip_next">下一首</string>
+    <string name="skip_previous">上一首</string>
+    <string name="repeat_off">不循环</string>
+    <string name="repeat_all">列表循环</string>
+    <string name="repeat_one">单曲循环</string>
+    <string name="shuffle_on">随机开</string>
+    <string name="shuffle_off">随机关</string>
+    <string name="now_playing">正在播放</string>
+    <string name="queue">播放队列</string>
+    <string name="lyrics">歌词</string>
+    <string name="lyrics_none">暂无歌词</string>
+    <string name="audio_info_format">%1$s · %2$d 位 · %3$s kHz · %4$d 声道</string>
+    <string name="dsp_active">DSP 已启用</string>
+    <string name="bit_perfect">Bit-perfect</string>
+
+    <string name="notification_channel_playback">播放</string>
+    <string name="notification_channel_playback_desc">媒体播放控制</string>
+
+    <string name="action_add_to_playlist">添加到歌单</string>
+    <string name="action_play_next">下一首播放</string>
+    <string name="action_add_to_queue">添加到队列</string>
+    <string name="action_song_info">歌曲信息</string>
+    <string name="action_remove_from_library">从 Lyra 移除</string>
+    <string name="action_delete_file">从手机删除文件</string>
+    <string name="action_identify">在线识别</string>
+</resources>
