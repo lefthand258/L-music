@@ -17,7 +17,7 @@ import androidx.room.PrimaryKey
     tableName = "songs",
     indices = [
         Index("mediaStoreId", unique = false),
-        Index("path", unique = true),
+        Index(value = ["path", "cueIndex"], unique = true),
         Index("albumId"),
         Index("artistId"),
         Index("title"),
@@ -40,8 +40,11 @@ data class SongEntity(
     val artist: String,
     val album: String,
     val albumArtist: String,
+    /** Lyra grouping ids (see LibraryIds) – derived from tag text, not from MediaStore. */
     val albumId: Long = 0,
     val artistId: Long = 0,
+    /** MediaStore ALBUM_ID, kept only as a last-resort source of cover art. */
+    val mediaStoreAlbumId: Long = 0,
     val composer: String? = null,
     val genre: String? = null,
     val year: Int? = null,
@@ -66,8 +69,11 @@ data class SongEntity(
     /** Whether embedded or sidecar lyrics are known to exist. */
     val hasLyrics: Boolean = false,
 
-    /** CUE sheet support: index inside the sheet, and absolute start/end offsets in ms. */
-    val cueIndex: Int? = null,
+    /**
+     * CUE sheet support. 0 = an ordinary one-song file; > 0 = track number inside a CUE sheet,
+     * in which case several rows share the same [path] and are told apart by this value.
+     */
+    val cueIndex: Int = 0,
     val cueStartMs: Long? = null,
     val cueEndMs: Long? = null,
 
@@ -80,6 +86,8 @@ data class SongEntity(
     val tagsFullyScanned: Boolean = false,
     /** True when some essential metadata (title/artist/album/cover) is missing. */
     val needsMetadata: Boolean = false,
+    /** User lyric timing correction in ms (positive = lyrics earlier). */
+    val lyricsOffsetMs: Long = 0,
 )
 
 @Entity(tableName = "playlists")

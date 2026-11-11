@@ -8,6 +8,10 @@ import dev.lyra.music.data.db.FolderRow
 import dev.lyra.music.data.db.GenreRow
 import dev.lyra.music.data.db.LyraDatabase
 import dev.lyra.music.data.db.SongEntity
+import dev.lyra.music.data.db.BlacklistedFolderEntity
+import dev.lyra.music.data.db.LibraryFolderEntity
+import dev.lyra.music.data.scanner.CueScanner
+import dev.lyra.music.data.scanner.DirectoryScanner
 import dev.lyra.music.data.scanner.MediaStoreScanner
 import dev.lyra.music.data.scanner.TagReader
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +43,8 @@ class LibraryRepository @Inject constructor(
     private val db: LyraDatabase,
     private val mediaStoreScanner: MediaStoreScanner,
     private val tagReader: TagReader,
+    private val cueScanner: CueScanner,
+    private val directoryScanner: DirectoryScanner,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val scanMutex = Mutex()
@@ -72,7 +78,8 @@ class LibraryRepository @Inject constructor(
     suspend fun getSong(id: Long): SongEntity? = songDao.getById(id)
     suspend fun getSongs(ids: List<Long>): List<SongEntity> {
         if (ids.isEmpty()) return emptyList()
-        val byId = songDao.getByIds(ids).associateBy { it.id }
+        val byId = HashMap<Long, SongEntity>(ids.size)
+        ids.distinct().chunked(SQL_CHUNK).forEach { chunk -> songDao.getByIds(chunk).forEach { byId[it.id] = it } }
         return ids.mapNotNull { byId[it] }
     }
     suspend fun getAllSongs(): List<SongEntity> = songDao.getAll()
@@ -81,9 +88,39 @@ class LibraryRepository @Inject constructor(
     suspend fun recordPlayed(id: Long) = songDao.incrementPlayCount(id, System.currentTimeMillis())
 
     /** "Remove from Lyra": hide only. */
-    suspend fun hideSongs(ids: List<Long>) = songDao.setHidden(ids, true)
+    suspend fun hideSongs(ids: List<Long>) = ids.chunked(SQL_CHUNK).forEach { songDao.setHidden(it, true) }
 
-    suspend fun setGenre(ids: List<Long>, genre: String?) = songDao.setGenre(ids, genre)
+    suspend fun setLyricsOffset(id: Long, offsetMs: Long) = songDao.setLyricsOffset(id, offsetMs)
+    suspend fun setHasLyrics(id: Long, has: Boolean) = songDao.setHasLyrics(id, has)
+
+    suspend fun setGenre(ids: List<Long>, genre: String?) = ids.chunked(SQL_CHUNK).forEach { songDao.setGenre(it, genre) }
+
+    // ---- Folders -------------------------------------------------------------------------
+
+    fun observeBlacklist(): Flow<List<String>> = db.settingsDao().observeBlacklist()
+    fun observeLibraryFolders(): Flow<List<LibraryFolderEntity>> = db.settingsDao().observeLibraryFolders()
+
+    /** Exclude a folder (and its sub-folders) from the library; files are untouched. */
+    suspend fun excludeFolder(path: String) {
+        db.settingsDao().addBlacklist(BlacklistedFolderEntity(path.trimEnd('/')))
+        scan(fullTags = false)
+    }
+
+    suspend fun includeFolder(path: String) {
+        db.settingsDao().removeBlacklist(path)
+        scan()
+    }
+
+    /** [path] is the resolved file-system path of the picked tree; [treeUri] is kept as the key. */
+    suspend fun addLibraryFolder(treeUri: String, path: String) {
+        db.settingsDao().addLibraryFolder(LibraryFolderEntity(treeUri = treeUri, displayName = path))
+        scan()
+    }
+
+    suspend fun removeLibraryFolder(treeUri: String) {
+        db.settingsDao().removeLibraryFolder(treeUri)
+        scan(fullTags = false)
+    }
 
     /** Kick off a scan in the background. Safe to call repeatedly. */
     fun requestScan(fullTags: Boolean = true) {
@@ -97,27 +134,46 @@ class LibraryRepository @Inject constructor(
             val blacklist = db.settingsDao().blacklist()
             val scanned = mediaStoreScanner.scan(MediaStoreScanner.Options(blacklistedFolders = blacklist))
 
-            // Remove rows whose files vanished.
-            val knownPaths = songDao.getAllScanKeys()
-            val scannedPaths = scanned.mapTo(HashSet()) { it.path }
-            val gone = knownPaths.filter { it.path !in scannedPaths && !File(it.path).exists() }.map { it.path }
-            if (gone.isNotEmpty()) songDao.deleteByPaths(gone)
+            // User-added folders: pick up files MediaStore does not know about.
+            val extraRoots = db.settingsDao().libraryFolders().map { it.displayName }
+            val extra = if (extraRoots.isEmpty()) emptyList() else
+                directoryScanner.scan(extraRoots, scanned.mapTo(HashSet()) { it.path }, blacklist)
 
             // Attach sidecar covers (folder.jpg etc.) cheaply by folder.
             val coverByFolder = HashMap<String, String?>()
-            val withCovers = scanned.map { s ->
+            val withCovers = (scanned + extra).map { s ->
                 val cover = coverByFolder.getOrPut(s.folderPath) { findFolderCover(s.folderPath) }
                 if (cover != null) s.copy(externalArtPath = cover) else s
             }
-            songDao.mergeScanned(withCovers)
+            // Split whole-album files that have a CUE sheet into per-track rows.
+            val expanded = cueScanner.expand(withCovers)
+
+            // Remove rows that no longer correspond to anything on disk: vanished files, and
+            // rows whose (path, cueIndex) is obsolete because a CUE sheet appeared or went away.
+            val wanted = expanded.mapTo(HashSet()) { it.path to it.cueIndex }
+            val scannedPaths = expanded.mapTo(HashSet()) { it.path }
+            val stale = songDao.getAllScanKeys().filter { k ->
+                if (k.path in scannedPaths) (k.path to k.cueIndex) !in wanted
+                else !File(k.path).exists() || blacklist.any { b -> k.path.startsWith("$b/") }
+            }.map { it.id }
+            stale.chunked(SQL_CHUNK).forEach { songDao.deleteByIds(it) }
+
+            expanded.chunked(SQL_CHUNK).forEach { songDao.mergeScanned(it) }
 
             if (fullTags) {
                 val toRead = songDao.getAll().filter { !it.tagsFullyScanned }
                 val total = toRead.size
                 var done = 0
                 val batch = ArrayList<SongEntity>(64)
-                for (song in toRead) {
-                    tagReader.read(song.path)?.let { batch += tagReader.merge(song, it) }
+                // CUE tracks share one file: read each file's tags only once.
+                var lastPath: String? = null
+                var lastResult: TagReader.Result? = null
+                for (song in toRead.sortedBy { it.path }) {
+                    if (song.path != lastPath) {
+                        lastPath = song.path
+                        lastResult = tagReader.read(song.path)
+                    }
+                    lastResult?.let { batch += tagReader.merge(song, it) }
                     done++
                     if (batch.size >= 64) {
                         songDao.updateAll(batch); batch.clear()
@@ -146,6 +202,8 @@ class LibraryRepository @Inject constructor(
     }
 
     companion object {
+        /** SQLite allows at most 999 bound variables per statement on Android 10. */
+        private const val SQL_CHUNK = 500
         private const val MAX_COVER_BYTES = 15L * 1024 * 1024
         private val COVER_NAMES = listOf(
             "cover.jpg", "cover.png", "folder.jpg", "folder.png", "front.jpg", "front.png",

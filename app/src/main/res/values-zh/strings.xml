@@ -59,4 +59,13 @@
     <string name="action_remove_from_library">从 Lyra 移除</string>
     <string name="action_delete_file">从手机删除文件</string>
     <string name="action_identify">在线识别</string>
+    <string name="folder_exclude">从曲库排除此文件夹</string>
+    <string name="folders_extra">额外文件夹</string>
+    <string name="folders_extra_desc">扫描系统未收录的文件夹（需要「所有文件访问」权限）</string>
+    <string name="folders_add">添加文件夹</string>
+    <string name="folders_excluded">已排除的文件夹</string>
+    <string name="folders_excluded_empty">暂无。可在「文件夹」页排除某个文件夹。</string>
+    <string name="folders_unsupported">无法扫描此位置，请选择手机存储或 SD 卡中的文件夹。</string>
+    <string name="remove">移除</string>
+    <string name="clear">清空</string>
 </resources>

@@ -63,4 +63,13 @@
     <string name="action_remove_from_library">Remove from Lyra</string>
     <string name="action_delete_file">Delete file from phone</string>
     <string name="action_identify">Identify online</string>
+    <string name="folder_exclude">Exclude folder from library</string>
+    <string name="folders_extra">Extra folders</string>
+    <string name="folders_extra_desc">Scan folders Android does not index (needs All files access)</string>
+    <string name="folders_add">Add folder</string>
+    <string name="folders_excluded">Excluded folders</string>
+    <string name="folders_excluded_empty">None. Exclude a folder from the Folders tab.</string>
+    <string name="folders_unsupported">This location cannot be scanned. Pick a folder on the phone storage or SD card.</string>
+    <string name="remove">Remove</string>
+    <string name="clear">Clear</string>
 </resources>

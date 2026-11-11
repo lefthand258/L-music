@@ -1,6 +1,7 @@
 package dev.lyra.music.data.scanner
 
 import dev.lyra.music.data.db.SongEntity
+import dev.lyra.music.data.db.withLibraryIds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFileIO
@@ -90,7 +91,28 @@ class TagReader @Inject constructor() {
     }
 
     /** Applies a successful [Result] on top of a [SongEntity], preferring file tags over MediaStore. */
-    fun merge(song: SongEntity, r: Result): SongEntity {
+    fun merge(song: SongEntity, r: Result): SongEntity = mergeTags(song, r).withLibraryIds()
+
+    private fun mergeTags(song: SongEntity, r: Result): SongEntity {
+        if (song.cueIndex > 0) {
+            // CUE track: descriptive tags come from the sheet; the file only contributes
+            // technical facts, and the length of the last track (which runs to end of file).
+            val duration = if (song.cueEndMs == null && r.durationMs != null && song.cueStartMs != null) {
+                (r.durationMs - song.cueStartMs).coerceAtLeast(0)
+            } else song.durationMs
+            return song.copy(
+                durationMs = duration,
+                bitrateKbps = r.bitrateKbps ?: song.bitrateKbps,
+                sampleRateHz = r.sampleRateHz ?: song.sampleRateHz,
+                bitDepth = r.bitDepth ?: song.bitDepth,
+                channels = r.channels ?: song.channels,
+                codec = r.codec ?: song.codec,
+                hasEmbeddedArt = r.hasEmbeddedArt,
+                genre = song.genre ?: r.genre,
+                year = song.year ?: r.year,
+                tagsFullyScanned = true,
+            )
+        }
         val title = r.title ?: song.title
         val artist = r.artist ?: song.artist
         val album = r.album ?: song.album

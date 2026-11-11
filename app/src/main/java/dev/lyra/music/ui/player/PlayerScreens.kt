@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
@@ -51,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -119,6 +121,8 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val song by vm.currentSong.collectAsStateWithLifecycle()
     var showQueue by remember { mutableStateOf(false) }
+    var showLyrics by rememberSaveable { mutableStateOf(false) }
+    val loadedLyrics by vm.lyrics.collectAsStateWithLifecycle()
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -131,16 +135,35 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit) {
                     stringResource(R.string.now_playing), modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge
                 )
+                IconButton(onClick = { showLyrics = !showLyrics }) {
+                    Icon(
+                        Icons.Default.Lyrics, stringResource(R.string.lyrics),
+                        tint = if (showLyrics) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 IconButton(onClick = { showQueue = true }) { Icon(Icons.Default.QueueMusic, stringResource(R.string.queue)) }
             }
 
-            Spacer(Modifier.weight(1f))
-            CoverImage(
-                song,
-                Modifier.fillMaxWidth().widthIn(max = 420.dp).aspectRatio(1f),
-                corner = 24
-            )
-            Spacer(Modifier.weight(1f))
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                if (showLyrics) {
+                    LyricsView(
+                        lyrics = loadedLyrics?.lyrics,
+                        positionMs = state.positionMs,
+                        userOffsetMs = song?.lyricsOffsetMs ?: 0L,
+                        onSeek = vm::seekTo,
+                        onAdjustOffset = vm::adjustLyricsOffset,
+                        onTapBackground = { showLyrics = false },
+                    )
+                } else {
+                    CoverImage(
+                        song,
+                        Modifier.fillMaxWidth().widthIn(max = 420.dp).aspectRatio(1f)
+                            .clickable { showLyrics = true },
+                        corner = 24
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
 
             val item = state.currentItem
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -251,7 +274,7 @@ private fun QueueSheet(vm: PlayerViewModel, state: PlayerState, onDismiss: () ->
                 "${stringResource(R.string.queue)} · ${state.currentIndex + 1}/${state.queue.size}",
                 style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f)
             )
-            TextButton(onClick = { vm.clearQueue(); onDismiss() }) { Text("Clear") }
+            TextButton(onClick = { vm.clearQueue(); onDismiss() }) { Text(stringResource(R.string.clear)) }
         }
         LazyColumn(Modifier.fillMaxWidth().height(480.dp)) {
             itemsIndexed(state.queue, key = { i, it -> "$i:${it.mediaId}" }) { index, item ->

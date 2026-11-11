@@ -35,7 +35,7 @@ data class CoverArt(
         fun of(song: SongEntity) = CoverArt(
             path = song.path,
             externalArtPath = song.externalArtPath,
-            mediaStoreAlbumId = song.albumId,
+            mediaStoreAlbumId = song.mediaStoreAlbumId,
             version = song.dateModified,
         )
     }
@@ -53,9 +53,7 @@ class CoverArtFetcher(
 ) : Fetcher {
 
     override suspend fun fetch(): FetchResult? {
-        embedded()?.let { return it }
-        external()?.let { return it }
-        return mediaStore()
+        return embedded() ?: external() ?: mediaStore()
     }
 
     private fun embedded(): FetchResult? {

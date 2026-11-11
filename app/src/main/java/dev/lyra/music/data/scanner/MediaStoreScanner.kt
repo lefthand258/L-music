@@ -41,7 +41,6 @@ class MediaStoreScanner @Inject constructor(
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.ALBUM_ARTIST,
             MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.ARTIST_ID,
             MediaStore.Audio.Media.COMPOSER,
             MediaStore.Audio.Media.YEAR,
             MediaStore.Audio.Media.TRACK,
@@ -69,7 +68,6 @@ class MediaStoreScanner @Inject constructor(
             val iAlbum = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val iAlbumArtist = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ARTIST)
             val iAlbumId = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-            val iArtistId = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID)
             val iComposer = c.getColumnIndexOrThrow(MediaStore.Audio.Media.COMPOSER)
             val iYear = c.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
             val iTrack = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
@@ -109,8 +107,7 @@ class MediaStoreScanner @Inject constructor(
                     artist = artist,
                     album = album,
                     albumArtist = albumArtist,
-                    albumId = c.getLong(iAlbumId),
-                    artistId = c.getLong(iArtistId),
+                    mediaStoreAlbumId = c.getLong(iAlbumId),
                     composer = c.getString(iComposer)?.takeIf { it.isNotBlank() },
                     genre = genre,
                     year = c.getIntOrNull(iYear)?.takeIf { it > 0 },

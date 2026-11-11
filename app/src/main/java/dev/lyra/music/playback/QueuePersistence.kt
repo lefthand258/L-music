@@ -60,24 +60,28 @@ class QueuePersistence @Inject constructor(
         }
     }
 
+    private class Snapshot(val songIds: List<Long>, val state: QueueStateEntity)
+
     /** Snapshot must be taken on the player's application thread, then persisted on IO. */
     suspend fun saveNow(player: Player) {
-        val snapshot = withContext(Dispatchers.Main.immediate) {
-            if (player.mediaItemCount == 0) return@withContext null
-            val ids = (0 until player.mediaItemCount).mapNotNull { player.getMediaItemAt(it).songId }
-            Triple(
-                ids,
-                player.currentMediaItemIndex,
-                QueueStateEntity(
-                    currentIndex = player.currentMediaItemIndex,
-                    positionMs = player.currentPosition.coerceAtLeast(0),
-                    shuffleEnabled = player.shuffleModeEnabled,
-                    repeatMode = player.repeatMode,
+        val snapshot: Snapshot = withContext<Snapshot?>(Dispatchers.Main.immediate) {
+            if (player.mediaItemCount == 0) {
+                null
+            } else {
+                val ids = (0 until player.mediaItemCount).mapNotNull { player.getMediaItemAt(it).songId }
+                Snapshot(
+                    ids,
+                    QueueStateEntity(
+                        currentIndex = player.currentMediaItemIndex,
+                        positionMs = player.currentPosition.coerceAtLeast(0),
+                        shuffleEnabled = player.shuffleModeEnabled,
+                        repeatMode = player.repeatMode,
+                    )
                 )
-            )
+            }
         } ?: return
         withContext(Dispatchers.IO) {
-            runCatching { db.queueDao().replaceQueue(snapshot.first, snapshot.third) }
+            runCatching { db.queueDao().replaceQueue(snapshot.songIds, snapshot.state) }
         }
     }
 

@@ -1,5 +1,9 @@
 package dev.lyra.music.ui.settings
 
+import android.provider.DocumentsContract
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,6 +28,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,6 +48,7 @@ import dev.lyra.music.data.repo.LibraryRepository
 import dev.lyra.music.data.repo.ScanState
 import dev.lyra.music.ui.permissions.Permissions
 import dev.lyra.music.ui.permissions.rememberPermissionState
+import dev.lyra.music.util.StoragePaths
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -65,6 +71,12 @@ class SettingsViewModel @Inject constructor(
     val onlineMode = prefs.onlineMetadataMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1)
     val autoOrganise = prefs.autoOrganise.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val scanState = library.scanState
+    val blacklist = library.observeBlacklist().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val libraryFolders = library.observeLibraryFolders().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun addLibraryFolder(treeUri: String, path: String) = viewModelScope.launch { library.addLibraryFolder(treeUri, path) }
+    fun removeLibraryFolder(treeUri: String) = viewModelScope.launch { library.removeLibraryFolder(treeUri) }
+    fun includeFolder(path: String) = viewModelScope.launch { library.includeFolder(path) }
 
     suspend fun setOnboarded(v: Boolean) = prefs.setOnboarded(v)
     fun setThemeMode(v: Int) = viewModelScope.launch { prefs.setThemeMode(v) }
@@ -86,6 +98,16 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, vm: Setting
     val scan by vm.scanState.collectAsStateWithLifecycle()
     val allFiles = rememberPermissionState { Permissions.hasAllFiles() }
     val battery = rememberPermissionState { Permissions.isIgnoringBatteryOptimizations(context) }
+    val excluded by vm.blacklist.collectAsStateWithLifecycle()
+    val extraFolders by vm.libraryFolders.collectAsStateWithLifecycle()
+    val unsupported = stringResource(R.string.folders_unsupported)
+    val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            val path = runCatching { StoragePaths.documentIdToPath(DocumentsContract.getTreeDocumentId(uri)) }.getOrNull()
+            if (path == null) Toast.makeText(context, unsupported, Toast.LENGTH_LONG).show()
+            else vm.addLibraryFolder(uri.toString(), path)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -126,6 +148,35 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, vm: Setting
                 checked = battery,
                 onToggle = { runCatching { context.startActivity(Permissions.batteryIntent(context)) } },
             )
+            Section(stringResource(R.string.folders_extra))
+            Text(
+                stringResource(R.string.folders_extra_desc), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp)
+            )
+            extraFolders.forEach { f ->
+                ListItem(
+                    headlineContent = { Text(f.displayName) },
+                    trailingContent = { TextButton(onClick = { vm.removeLibraryFolder(f.treeUri) }) { Text(stringResource(R.string.remove)) } }
+                )
+            }
+            TextButton(onClick = { treePicker.launch(null) }, modifier = Modifier.padding(horizontal = 8.dp)) {
+                Text("+ " + stringResource(R.string.folders_add))
+            }
+
+            Section(stringResource(R.string.folders_excluded))
+            if (excluded.isEmpty()) {
+                Text(
+                    stringResource(R.string.folders_excluded_empty), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            excluded.forEach { path ->
+                ListItem(
+                    headlineContent = { Text(path) },
+                    trailingContent = { TextButton(onClick = { vm.includeFolder(path) }) { Text(stringResource(R.string.remove)) } }
+                )
+            }
             HorizontalDivider()
 
             Section("Metadata / 元数据")

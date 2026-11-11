@@ -72,5 +72,6 @@ class LibraryViewModel @Inject constructor(
     fun playNext(song: SongEntity) = player.playNext(listOf(song))
     fun addToQueue(song: SongEntity) = player.addToQueue(listOf(song))
     fun toggleFavourite(song: SongEntity) = viewModelScope.launch { library.setFavourite(song.id, !song.isFavourite) }
+    fun excludeFolder(path: String) = viewModelScope.launch { library.excludeFolder(path) }
     fun hide(song: SongEntity) = viewModelScope.launch { library.hideSongs(listOf(song.id)) }
 }

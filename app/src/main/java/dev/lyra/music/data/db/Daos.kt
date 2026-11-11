@@ -21,6 +21,7 @@ data class AlbumRow(
     val sampleSongPath: String,
     val sampleHasEmbeddedArt: Boolean,
     val sampleExternalArtPath: String?,
+    val sampleMediaStoreAlbumId: Long,
 )
 
 data class ArtistRow(
@@ -74,13 +75,16 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE id IN (:ids)")
     suspend fun getByIds(ids: List<Long>): List<SongEntity>
 
-    @Query("SELECT * FROM songs WHERE path = :path LIMIT 1")
-    suspend fun getByPath(path: String): SongEntity?
+    @Query("SELECT * FROM songs WHERE path = :path AND cueIndex = :cueIndex LIMIT 1")
+    suspend fun getByKey(path: String, cueIndex: Int): SongEntity?
+
+    @Query("SELECT * FROM songs WHERE path = :path ORDER BY cueIndex ASC")
+    suspend fun getByPath(path: String): List<SongEntity>
 
     @Query("SELECT * FROM songs WHERE isHidden = 0 ORDER BY title COLLATE NOCASE ASC")
     suspend fun getAll(): List<SongEntity>
 
-    @Query("SELECT id, path, dateModified, fileSize FROM songs")
+    @Query("SELECT id, path, cueIndex, dateModified, fileSize FROM songs")
     suspend fun getAllScanKeys(): List<ScanKey>
 
     @Query("SELECT COUNT(*) FROM songs WHERE isHidden = 0")
@@ -115,7 +119,8 @@ interface SongDao {
         SELECT albumId, album, albumArtist, MAX(year) AS year, COUNT(*) AS songCount,
                SUM(durationMs) AS durationMs,
                MIN(id) AS sampleSongId, MIN(path) AS sampleSongPath,
-               MAX(hasEmbeddedArt) AS sampleHasEmbeddedArt, MAX(externalArtPath) AS sampleExternalArtPath
+               MAX(hasEmbeddedArt) AS sampleHasEmbeddedArt, MAX(externalArtPath) AS sampleExternalArtPath,
+               MAX(mediaStoreAlbumId) AS sampleMediaStoreAlbumId
         FROM songs WHERE isHidden = 0
         GROUP BY albumId ORDER BY album COLLATE NOCASE ASC
         """
@@ -165,19 +170,25 @@ interface SongDao {
     @Query("UPDATE songs SET playCount = playCount + 1, lastPlayed = :now WHERE id = :id")
     suspend fun incrementPlayCount(id: Long, now: Long)
 
+    @Query("UPDATE songs SET lyricsOffsetMs = :offsetMs WHERE id = :id")
+    suspend fun setLyricsOffset(id: Long, offsetMs: Long)
+
+    @Query("UPDATE songs SET hasLyrics = :has WHERE id = :id")
+    suspend fun setHasLyrics(id: Long, has: Boolean)
+
     @Query("UPDATE songs SET genre = :genre WHERE id IN (:ids)")
     suspend fun setGenre(ids: List<Long>, genre: String?)
 
     /**
-     * Upsert by [SongEntity.path]: keeps user state (favourites, play counts, overrides) for files
+     * Upsert by ([SongEntity.path], [SongEntity.cueIndex]): keeps user state (favourites, play counts, overrides) for files
      * that are already known, and inserts the rest.
      */
     @Transaction
     suspend fun mergeScanned(scanned: List<SongEntity>) {
         for (s in scanned) {
-            val existing = getByPath(s.path)
+            val existing = getByKey(s.path, s.cueIndex)
             if (existing == null) {
-                upsert(s)
+                upsert(s.withLibraryIds())
             } else {
                 update(
                     s.copy(
@@ -186,6 +197,7 @@ interface SongDao {
                         playCount = existing.playCount,
                         lastPlayed = existing.lastPlayed,
                         isHidden = existing.isHidden,
+                        lyricsOffsetMs = existing.lyricsOffsetMs,
                         // Keep richer tag data if a full scan already happened and file is unchanged.
                         title = if (existing.tagsFullyScanned && existing.dateModified == s.dateModified) existing.title else s.title,
                         artist = if (existing.tagsFullyScanned && existing.dateModified == s.dateModified) existing.artist else s.artist,
@@ -194,14 +206,14 @@ interface SongDao {
                         genre = existing.genre ?: s.genre,
                         externalArtPath = existing.externalArtPath ?: s.externalArtPath,
                         tagsFullyScanned = existing.tagsFullyScanned && existing.dateModified == s.dateModified,
-                    )
+                    ).withLibraryIds()
                 )
             }
         }
     }
 }
 
-data class ScanKey(val id: Long, val path: String, val dateModified: Long, val fileSize: Long)
+data class ScanKey(val id: Long, val path: String, val cueIndex: Int, val dateModified: Long, val fileSize: Long)
 
 @Dao
 interface PlaylistDao {

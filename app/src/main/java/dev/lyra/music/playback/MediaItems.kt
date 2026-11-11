@@ -54,7 +54,7 @@ fun SongEntity.toMediaItem(): MediaItem {
         // album art URI (embedded art is resolved by the session bitmap loader in a later sprint).
         .setArtworkUri(
             externalArtPath?.let { Uri.fromFile(java.io.File(it)) }
-                ?: if (albumId > 0) Uri.parse("content://media/external/audio/albumart/$albumId") else null
+                ?: if (mediaStoreAlbumId > 0) Uri.parse("content://media/external/audio/albumart/$mediaStoreAlbumId") else null
         )
         .setExtras(extras)
         .build()

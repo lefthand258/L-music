@@ -24,6 +24,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -204,6 +205,15 @@ fun LibraryHome(
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                Box {
+                                    var menu by remember { mutableStateOf(false) }
+                                    IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, null) }
+                                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.folder_exclude)) },
+                                            onClick = { menu = false; vm.excludeFolder(f.folderPath) })
+                                    }
+                                }
                             }
                         }
                     }
@@ -241,7 +251,7 @@ private fun AlbumGrid(albums: List<AlbumRow>, padding: PaddingValues, onOpen: (L
                     song = SongEntity(
                         id = a.sampleSongId, path = a.sampleSongPath, uri = "", fileName = "", folderPath = "",
                         fileSize = 0, dateAdded = 0, dateModified = 0, title = "", artist = "", album = "",
-                        albumArtist = "", albumId = a.albumId, durationMs = 0,
+                        albumArtist = "", albumId = a.albumId, mediaStoreAlbumId = a.sampleMediaStoreAlbumId, durationMs = 0,
                         hasEmbeddedArt = a.sampleHasEmbeddedArt, externalArtPath = a.sampleExternalArtPath,
                     ),
                     modifier = Modifier.fillMaxWidth().aspectRatio(1f), corner = 12
