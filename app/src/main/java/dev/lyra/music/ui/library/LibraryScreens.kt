@@ -39,7 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -67,14 +67,16 @@ import kotlinx.coroutines.launch
 @Composable
 fun LibraryHome(
     vm: LibraryViewModel,
+    actions: SongActions,
     currentSongId: Long?,
     bottomPadding: PaddingValues,
+    playlistsTab: @Composable (PaddingValues) -> Unit,
     onOpenAlbum: (Long) -> Unit,
     onOpenArtist: (Long) -> Unit,
     onOpenFolder: (String) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    val tabs = listOf(R.string.nav_songs, R.string.nav_albums, R.string.nav_artists, R.string.nav_folders)
+    val tabs = listOf(R.string.nav_songs, R.string.nav_playlists, R.string.nav_albums, R.string.nav_artists, R.string.nav_folders)
     val pager = rememberPagerState { tabs.size }
     val scope = rememberCoroutineScope()
     val scanState by vm.scanState.collectAsStateWithLifecycle()
@@ -127,7 +129,7 @@ fun LibraryHome(
                     }
                     else -> Unit
                 }
-                TabRow(selectedTabIndex = pager.currentPage) {
+                ScrollableTabRow(selectedTabIndex = pager.currentPage, edgePadding = 8.dp) {
                     tabs.forEachIndexed { i, label ->
                         Tab(
                             selected = pager.currentPage == i,
@@ -147,18 +149,14 @@ fun LibraryHome(
             when (page) {
                 0 -> {
                     val songs by vm.songs.collectAsStateWithLifecycle()
-                    SongList(
-                        songs = songs, currentSongId = currentSongId, contentPadding = padding,
-                        onPlay = vm::play, onPlayAll = vm::playAll, onShuffleAll = vm::shuffleAll,
-                        onPlayNext = vm::playNext, onAddToQueue = vm::addToQueue,
-                        onToggleFavourite = vm::toggleFavourite, onHide = vm::hide,
-                    )
+                    SongList(songs = songs, currentSongId = currentSongId, contentPadding = padding, actions = actions)
                 }
-                1 -> {
+                1 -> playlistsTab(padding)
+                2 -> {
                     val albums by vm.albums.collectAsStateWithLifecycle()
                     AlbumGrid(albums, padding, onOpenAlbum)
                 }
-                2 -> {
+                3 -> {
                     val artists by vm.artists.collectAsStateWithLifecycle()
                     LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
                         items(artists, key = { it.artistId }) { a ->
@@ -276,8 +274,11 @@ fun SongCollectionScreen(
     songs: List<SongEntity>,
     currentSongId: Long?,
     bottomPadding: PaddingValues,
-    vm: LibraryViewModel,
+    actions: SongActions,
     onBack: () -> Unit,
+    onRemoveFromPlaylist: ((SongEntity) -> Unit)? = null,
+    /** Extra buttons in the app bar (playlist rename / export / delete…). */
+    topActions: (@Composable () -> Unit)? = null,
 ) {
     Scaffold(
         topBar = {
@@ -288,16 +289,16 @@ fun SongCollectionScreen(
                         if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
+                actions = { topActions?.invoke() }
             )
         }
     ) { inner ->
         SongList(
             songs = songs, currentSongId = currentSongId,
             contentPadding = PaddingValues(top = inner.calculateTopPadding(), bottom = bottomPadding.calculateBottomPadding()),
-            onPlay = vm::play, onPlayAll = vm::playAll, onShuffleAll = vm::shuffleAll,
-            onPlayNext = vm::playNext, onAddToQueue = vm::addToQueue,
-            onToggleFavourite = vm::toggleFavourite, onHide = vm::hide,
+            actions = actions,
+            onRemoveFromPlaylist = onRemoveFromPlaylist,
             header = if (songs.isNotEmpty()) ({
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     CoverImage(songs.first(), Modifier.size(120.dp), corner = 16)

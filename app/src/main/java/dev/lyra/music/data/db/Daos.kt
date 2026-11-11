@@ -60,7 +60,7 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE isHidden = 0 ORDER BY playCount DESC, lastPlayed DESC")
     fun observeAllByPlayCount(): Flow<List<SongEntity>>
 
-    @Query("SELECT * FROM songs WHERE isHidden = 0 ORDER BY lastPlayed DESC LIMIT :limit")
+    @Query("SELECT * FROM songs WHERE isHidden = 0 AND lastPlayed IS NOT NULL ORDER BY lastPlayed DESC LIMIT :limit")
     fun observeRecentlyPlayed(limit: Int): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE isHidden = 0 AND isFavourite = 1 ORDER BY title COLLATE NOCASE ASC")
@@ -158,6 +158,9 @@ interface SongDao {
     @Query("DELETE FROM songs WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
 
+    @Query("SELECT * FROM songs WHERE isHidden = 0 AND playCount > 0 ORDER BY playCount DESC, lastPlayed DESC LIMIT :limit")
+    fun observeMostPlayed(limit: Int): Flow<List<SongEntity>>
+
     @Query("DELETE FROM songs WHERE path IN (:paths)")
     suspend fun deleteByPaths(paths: List<String>)
 
@@ -215,10 +218,56 @@ interface SongDao {
 
 data class ScanKey(val id: Long, val path: String, val cueIndex: Int, val dateModified: Long, val fileSize: Long)
 
+data class PlaylistWithCount(
+    val id: Long,
+    val name: String,
+    val description: String?,
+    val coverPath: String?,
+    val updatedAt: Long,
+    val songCount: Int,
+    /** Any song of the playlist, used for the cover when no custom cover is set. */
+    val sampleSongId: Long?,
+)
+
 @Dao
 interface PlaylistDao {
     @Query("SELECT * FROM playlists ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<PlaylistEntity>>
+
+    @Query(
+        """
+        SELECT p.id, p.name, p.description, p.coverPath, p.updatedAt,
+               COUNT(s.id) AS songCount, MIN(s.id) AS sampleSongId
+        FROM playlists p
+        LEFT JOIN playlist_entries e ON e.playlistId = p.id
+        LEFT JOIN songs s ON s.id = e.songId AND s.isHidden = 0
+        GROUP BY p.id ORDER BY p.updatedAt DESC
+        """
+    )
+    fun observeAllWithCounts(): Flow<List<PlaylistWithCount>>
+
+    @Query("SELECT * FROM playlists")
+    suspend fun getAll(): List<PlaylistEntity>
+
+    @Query("SELECT * FROM playlists WHERE id = :id")
+    suspend fun getById(id: Long): PlaylistEntity?
+
+    @Query("SELECT * FROM playlists WHERE name = :name LIMIT 1")
+    suspend fun getByName(name: String): PlaylistEntity?
+
+    @Query(
+        """
+        SELECT s.* FROM songs s INNER JOIN playlist_entries e ON e.songId = s.id
+        WHERE e.playlistId = :playlistId ORDER BY e.position ASC
+        """
+    )
+    suspend fun getSongs(playlistId: Long): List<SongEntity>
+
+    @Query("UPDATE playlists SET name = :name, updatedAt = :now WHERE id = :id")
+    suspend fun rename(id: Long, name: String, now: Long)
+
+    @Query("SELECT IFNULL(MAX(position), -1) FROM playlist_entries WHERE playlistId = :playlistId")
+    suspend fun maxPosition(playlistId: Long): Int
 
     @Query("SELECT * FROM playlists WHERE id = :id")
     fun observeById(id: Long): Flow<PlaylistEntity?>
@@ -254,15 +303,19 @@ interface PlaylistDao {
 
     @Transaction
     suspend fun addSongs(playlistId: Long, songIds: List<Long>) {
-        var pos = count(playlistId)
-        insertEntries(songIds.map { PlaylistEntryEntity(playlistId, it, pos++) })
+        var pos = maxPosition(playlistId) + 1
+        // 400 rows x 4 columns stays under SQLite's bound-variable limit on Android 10.
+        songIds.distinct().chunked(200).forEach { chunk ->
+            insertEntries(chunk.map { PlaylistEntryEntity(playlistId, it, pos++) })
+        }
         touch(playlistId, System.currentTimeMillis())
     }
 
     @Transaction
     suspend fun reorder(playlistId: Long, orderedSongIds: List<Long>) {
         clearEntries(playlistId)
-        insertEntries(orderedSongIds.mapIndexed { i, id -> PlaylistEntryEntity(playlistId, id, i) })
+        orderedSongIds.distinct().mapIndexed { i, id -> PlaylistEntryEntity(playlistId, id, i) }
+            .chunked(200).forEach { insertEntries(it) }
         touch(playlistId, System.currentTimeMillis())
     }
 

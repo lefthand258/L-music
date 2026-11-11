@@ -73,6 +73,7 @@ class LibraryRepository @Inject constructor(
     fun observeGenreSongs(genre: String) = songDao.observeByGenre(genre)
     fun observeFavourites() = songDao.observeFavourites()
     fun observeRecentlyPlayed(limit: Int = 100) = songDao.observeRecentlyPlayed(limit)
+    fun observeMostPlayed(limit: Int = 100) = songDao.observeMostPlayed(limit)
     fun search(query: String): Flow<List<SongEntity>> = songDao.search(query.trim())
 
     suspend fun getSong(id: Long): SongEntity? = songDao.getById(id)
@@ -82,10 +83,14 @@ class LibraryRepository @Inject constructor(
         ids.distinct().chunked(SQL_CHUNK).forEach { chunk -> songDao.getByIds(chunk).forEach { byId[it.id] = it } }
         return ids.mapNotNull { byId[it] }
     }
+    suspend fun getSongsByPath(path: String): List<SongEntity> = songDao.getByPath(path)
     suspend fun getAllSongs(): List<SongEntity> = songDao.getAll()
 
     suspend fun setFavourite(id: Long, fav: Boolean) = songDao.setFavourite(id, fav)
     suspend fun recordPlayed(id: Long) = songDao.incrementPlayCount(id, System.currentTimeMillis())
+
+    /** Drops library rows for files that were deleted from the phone. */
+    suspend fun forgetPaths(paths: List<String>) = paths.distinct().chunked(SQL_CHUNK).forEach { songDao.deleteByPaths(it) }
 
     /** "Remove from Lyra": hide only. */
     suspend fun hideSongs(ids: List<Long>) = ids.chunked(SQL_CHUNK).forEach { songDao.setHidden(it, true) }

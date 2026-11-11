@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +49,21 @@ import dev.lyra.music.R
 import dev.lyra.music.data.db.SongEntity
 import dev.lyra.music.util.CoverArt
 import dev.lyra.music.util.formatDuration
+
+/** Everything a song row can do; built once at the app root and passed down. */
+class SongActions(
+    val onPlay: (List<SongEntity>, Int) -> Unit,
+    val onPlayAll: (List<SongEntity>) -> Unit,
+    val onShuffleAll: (List<SongEntity>) -> Unit,
+    val onPlayNext: (SongEntity) -> Unit,
+    val onAddToQueue: (SongEntity) -> Unit,
+    val onToggleFavourite: (SongEntity) -> Unit,
+    val onAddToPlaylist: (SongEntity) -> Unit,
+    /** "Remove from Lyra": hides the song, the file stays on the phone. */
+    val onHide: (SongEntity) -> Unit,
+    /** "Delete file from phone": asks for confirmation, then deletes the file itself. */
+    val onDeleteFile: (SongEntity) -> Unit,
+)
 
 @Composable
 fun CoverImage(song: SongEntity?, modifier: Modifier = Modifier, corner: Int = 8) {
@@ -78,11 +94,9 @@ fun SongRow(
     song: SongEntity,
     isCurrent: Boolean,
     onClick: () -> Unit,
-    onPlayNext: () -> Unit,
-    onAddToQueue: () -> Unit,
-    onToggleFavourite: () -> Unit,
-    onHide: () -> Unit,
+    actions: SongActions,
     modifier: Modifier = Modifier,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     Row(
@@ -124,12 +138,20 @@ fun SongRow(
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, null) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.action_play_next)) }, onClick = { menu = false; onPlayNext() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.action_add_to_queue)) }, onClick = { menu = false; onAddToQueue() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.action_play_next)) }, onClick = { menu = false; actions.onPlayNext(song) })
+                DropdownMenuItem(text = { Text(stringResource(R.string.action_add_to_queue)) }, onClick = { menu = false; actions.onAddToQueue(song) })
+                DropdownMenuItem(text = { Text(stringResource(R.string.action_add_to_playlist)) }, onClick = { menu = false; actions.onAddToPlaylist(song) })
                 DropdownMenuItem(
-                    text = { Text(if (song.isFavourite) "♥ −" else "♥ +") },
-                    onClick = { menu = false; onToggleFavourite() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.action_remove_from_library)) }, onClick = { menu = false; onHide() })
+                    text = { Text(stringResource(if (song.isFavourite) R.string.action_unfavourite else R.string.action_favourite)) },
+                    onClick = { menu = false; actions.onToggleFavourite(song) })
+                if (onRemoveFromPlaylist != null) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_remove_from_playlist)) }, onClick = { menu = false; onRemoveFromPlaylist() })
+                }
+                HorizontalDivider()
+                DropdownMenuItem(text = { Text(stringResource(R.string.action_remove_from_library)) }, onClick = { menu = false; actions.onHide(song) })
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.action_delete_file), color = MaterialTheme.colorScheme.error) },
+                    onClick = { menu = false; actions.onDeleteFile(song) })
             }
         }
     }
@@ -140,18 +162,13 @@ fun SongList(
     songs: List<SongEntity>,
     currentSongId: Long?,
     contentPadding: PaddingValues,
-    onPlay: (List<SongEntity>, Int) -> Unit,
-    onPlayAll: (List<SongEntity>) -> Unit,
-    onShuffleAll: (List<SongEntity>) -> Unit,
-    onPlayNext: (SongEntity) -> Unit,
-    onAddToQueue: (SongEntity) -> Unit,
-    onToggleFavourite: (SongEntity) -> Unit,
-    onHide: (SongEntity) -> Unit,
+    actions: SongActions,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     header: (@Composable () -> Unit)? = null,
+    onRemoveFromPlaylist: ((SongEntity) -> Unit)? = null,
 ) {
-    if (songs.isEmpty()) {
+    if (songs.isEmpty() && header == null) {
         Box(modifier.fillMaxSize().padding(contentPadding), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.library_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -159,14 +176,14 @@ fun SongList(
     }
     LazyColumn(modifier = modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
         if (header != null) item("header") { header() }
-        item("actions") {
+        if (songs.isNotEmpty()) item("actions") {
             Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                FilledTonalButton(onClick = { onPlayAll(songs) }) {
+                FilledTonalButton(onClick = { actions.onPlayAll(songs) }) {
                     Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.play_all))
                 }
                 Spacer(Modifier.width(8.dp))
-                FilledTonalButton(onClick = { onShuffleAll(songs) }) {
+                FilledTonalButton(onClick = { actions.onShuffleAll(songs) }) {
                     Icon(Icons.Default.Shuffle, null); Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.shuffle_all))
                 }
@@ -179,15 +196,13 @@ fun SongList(
                 )
             }
         }
-        items(songs, key = { it.id }) { song ->
+        itemsIndexed(songs, key = { _, it -> it.id }) { index, song ->
             SongRow(
                 song = song,
                 isCurrent = song.id == currentSongId,
-                onClick = { onPlay(songs, songs.indexOf(song)) },
-                onPlayNext = { onPlayNext(song) },
-                onAddToQueue = { onAddToQueue(song) },
-                onToggleFavourite = { onToggleFavourite(song) },
-                onHide = { onHide(song) },
+                onClick = { actions.onPlay(songs, index) },
+                actions = actions,
+                onRemoveFromPlaylist = onRemoveFromPlaylist?.let { cb -> { cb(song) } },
             )
         }
         item("bottom") { Spacer(Modifier.height(8.dp)) }
