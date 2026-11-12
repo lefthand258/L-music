@@ -122,6 +122,7 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit) {
     val song by vm.currentSong.collectAsStateWithLifecycle()
     var showQueue by remember { mutableStateOf(false) }
     var showLyrics by rememberSaveable { mutableStateOf(false) }
+    var showLyricsSearch by remember { mutableStateOf(false) }
     val loadedLyrics by vm.lyrics.collectAsStateWithLifecycle()
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -153,6 +154,8 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit) {
                         onSeek = vm::seekTo,
                         onAdjustOffset = vm::adjustLyricsOffset,
                         onTapBackground = { showLyrics = false },
+                        onSearchOnline = { vm.resetLyricsSearch(); showLyricsSearch = true },
+                        loading = loadedLyrics == null && song != null,
                     )
                 } else {
                     CoverImage(
@@ -236,6 +239,10 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit) {
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showLyricsSearch) {
+        LyricsSearchSheet(vm = vm, onDismiss = { showLyricsSearch = false })
     }
 
     if (showQueue) {

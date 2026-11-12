@@ -6,7 +6,19 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.lyra.music.data.db.SongEntity
 import dev.lyra.music.data.repo.LibraryRepository
 import dev.lyra.music.lyrics.LoadedLyrics
+import dev.lyra.music.data.prefs.UserPrefs
+import dev.lyra.music.data.scanner.TagWriter
 import dev.lyra.music.lyrics.LyricsRepository
+import dev.lyra.music.lyrics.LyricsSource
+import dev.lyra.music.online.LyricsCandidate
+import dev.lyra.music.online.LyricsQuery
+import dev.lyra.music.online.LyricsSearchService
+import dev.lyra.music.online.OnlineSource
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import dev.lyra.music.playback.PlayerConnection
 import dev.lyra.music.playback.PlayerState
 import dev.lyra.music.playback.QueuePersistence
@@ -29,6 +41,9 @@ class PlayerViewModel @Inject constructor(
     private val library: LibraryRepository,
     private val queuePersistence: QueuePersistence,
     private val lyricsRepository: LyricsRepository,
+    private val lyricsSearch: LyricsSearchService,
+    private val tagWriter: TagWriter,
+    private val prefs: UserPrefs,
 ) : ViewModel() {
 
     val state: StateFlow<PlayerState> = player.state
@@ -40,16 +55,94 @@ class PlayerViewModel @Inject constructor(
         .flatMapLatest { id -> if (id == null) flowOf(null) else library.observeSong(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Lyrics of the current song; null while loading. Reloads when the file changes. */
+    private val lyricsReload = MutableStateFlow(0)
+    private val autoTried = HashSet<Long>()
+
+    /**
+     * Lyrics of the current song; null while loading. Reloads when the file changes or new
+     * lyrics were saved. A song without any lyrics is looked up online once per session when
+     * the "online identification" setting allows it, and only a confident match is kept.
+     */
     val lyrics: StateFlow<LoadedLyrics?> = currentSong
         .distinctUntilChanged { a, b -> a?.id == b?.id && a?.dateModified == b?.dateModified }
+        .combine(lyricsReload) { song, _ -> song }
         .flatMapLatest { song ->
             flow {
                 emit(null)
-                if (song != null) emit(lyricsRepository.load(song))
+                if (song == null) return@flow
+                val local = lyricsRepository.load(song)
+                emit(local)
+                if (local.source == LyricsSource.NONE && autoTried.add(song.id) &&
+                    lyricsSearch.autoAllowed(prefs.onlineMetadataMode.first())
+                ) {
+                    val text = lyricsSearch.autoFind(song) ?: return@flow
+                    saveLyrics(song, text)
+                    emit(lyricsRepository.load(song))
+                }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private suspend fun saveLyrics(song: SongEntity, text: String) {
+        lyricsRepository.save(song, text)
+        if (song.cueIndex == 0 && prefs.writeTagsToFile.first()) tagWriter.writeLyrics(song.path, text)
+    }
+
+    // ---- Manual online search ---------------------------------------------------------------
+
+    data class LyricsSearchUi(
+        val searching: Boolean = false,
+        val searched: Boolean = false,
+        val results: List<LyricsCandidate> = emptyList(),
+        val previewOf: LyricsCandidate? = null,
+        val previewText: String? = null,
+        val loadingPreview: Boolean = false,
+        val previewFailed: Boolean = false,
+    )
+
+    private val _lyricsSearchUi = MutableStateFlow(LyricsSearchUi())
+    val lyricsSearchUi: StateFlow<LyricsSearchUi> = _lyricsSearchUi.asStateFlow()
+    private var searchJob: Job? = null
+
+    fun defaultLyricsQuery(): LyricsQuery? = currentSong.value?.let(lyricsSearch::queryFor)
+
+    fun resetLyricsSearch() {
+        searchJob?.cancel()
+        _lyricsSearchUi.value = LyricsSearchUi()
+    }
+
+    fun searchLyrics(title: String, artist: String, sources: Set<OnlineSource>) {
+        val song = currentSong.value ?: return
+        searchJob?.cancel()
+        _lyricsSearchUi.value = LyricsSearchUi(searching = true)
+        searchJob = viewModelScope.launch {
+            val q = LyricsQuery(title.trim(), artist.trim(), song.album, song.durationMs)
+            val results = lyricsSearch.search(q, sources)
+            _lyricsSearchUi.value = LyricsSearchUi(searched = true, results = results)
+        }
+    }
+
+    fun previewLyrics(candidate: LyricsCandidate) {
+        searchJob?.cancel()
+        _lyricsSearchUi.update { it.copy(previewOf = candidate, previewText = null, loadingPreview = true, previewFailed = false) }
+        searchJob = viewModelScope.launch {
+            val text = lyricsSearch.fetch(candidate)
+            _lyricsSearchUi.update { it.copy(previewText = text, loadingPreview = false, previewFailed = text == null) }
+        }
+    }
+
+    fun closeLyricsPreview() = _lyricsSearchUi.update { it.copy(previewOf = null, previewText = null, loadingPreview = false, previewFailed = false) }
+
+    /** Saves the previewed lyrics for the current song. */
+    fun applyLyricsPreview() {
+        val song = currentSong.value ?: return
+        val text = _lyricsSearchUi.value.previewText ?: return
+        viewModelScope.launch {
+            saveLyrics(song, text)
+            library.setLyricsOffset(song.id, 0)
+            lyricsReload.update { it + 1 }
+        }
+    }
 
     fun adjustLyricsOffset(deltaMs: Long) {
         val s = currentSong.value ?: return

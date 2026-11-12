@@ -99,4 +99,20 @@
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
     <string name="ok">OK</string>
+    <string name="lyrics_loading">Loading lyrics…</string>
+    <string name="lyrics_search_online">Search lyrics online</string>
+    <string name="lyrics_replace">Change</string>
+    <string name="lyrics_search_title">Search lyrics online</string>
+    <string name="field_title">Title</string>
+    <string name="field_artist">Artist</string>
+    <string name="search">Search</string>
+    <string name="source_all">All</string>
+    <string name="lyrics_search_empty">No lyrics found. Try editing the title or artist.</string>
+    <string name="lyrics_synced">Synced</string>
+    <string name="lyrics_plain">Text only</string>
+    <string name="lyrics_match">%1$d%% match</string>
+    <string name="lyrics_use">Use these lyrics</string>
+    <string name="lyrics_preview_failed">Could not load these lyrics. Try another result.</string>
+    <string name="back">Back</string>
+    <string name="lyrics_saved">Lyrics saved</string>
 </resources>

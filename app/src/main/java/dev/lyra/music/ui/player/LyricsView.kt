@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,7 +48,9 @@ fun LyricsView(
     onSeek: (Long) -> Unit,
     onAdjustOffset: (deltaMs: Long) -> Unit,
     onTapBackground: () -> Unit,
+    onSearchOnline: () -> Unit,
     modifier: Modifier = Modifier,
+    loading: Boolean = false,
 ) {
     val noRipple = remember { MutableInteractionSource() }
     if (lyrics == null || lyrics.isEmpty) {
@@ -55,7 +58,17 @@ fun LyricsView(
             modifier.fillMaxSize().clickable(interactionSource = noRipple, indication = null, onClick = onTapBackground),
             contentAlignment = Alignment.Center
         ) {
-            Text(stringResource(R.string.lyrics_none), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    stringResource(if (loading) R.string.lyrics_loading else R.string.lyrics_none),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (!loading) {
+                    FilledTonalButton(onClick = onSearchOnline, modifier = Modifier.padding(top = 16.dp)) {
+                        Text(stringResource(R.string.lyrics_search_online))
+                    }
+                }
+            }
         }
         return
     }
@@ -141,13 +154,17 @@ fun LyricsView(
             }
         }
 
+        if (!lyrics.synced) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                TextButton(onClick = onSearchOnline) { Text(stringResource(R.string.lyrics_replace)) }
+            }
+        }
         if (lyrics.synced) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = { onAdjustOffset(-500) }) { Text("−0.5s") }
                 TextButton(onClick = { onAdjustOffset(-100) }) { Text("−0.1s") }
                 Text(
                     String.format(Locale.US, "%+.1fs", userOffsetMs / 1000.0),
@@ -156,7 +173,7 @@ fun LyricsView(
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
                 TextButton(onClick = { onAdjustOffset(100) }) { Text("+0.1s") }
-                TextButton(onClick = { onAdjustOffset(500) }) { Text("+0.5s") }
+                TextButton(onClick = onSearchOnline) { Text(stringResource(R.string.lyrics_replace)) }
             }
         }
     }

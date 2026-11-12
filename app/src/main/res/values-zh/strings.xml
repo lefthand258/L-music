@@ -95,4 +95,20 @@
     <string name="delete">删除</string>
     <string name="cancel">取消</string>
     <string name="ok">确定</string>
+    <string name="lyrics_loading">正在加载歌词…</string>
+    <string name="lyrics_search_online">在线搜索歌词</string>
+    <string name="lyrics_replace">更换</string>
+    <string name="lyrics_search_title">在线搜索歌词</string>
+    <string name="field_title">歌名</string>
+    <string name="field_artist">歌手</string>
+    <string name="search">搜索</string>
+    <string name="source_all">全部</string>
+    <string name="lyrics_search_empty">没有找到歌词，可以修改歌名或歌手后再试。</string>
+    <string name="lyrics_synced">滚动歌词</string>
+    <string name="lyrics_plain">纯文本</string>
+    <string name="lyrics_match">匹配度 %1$d%%</string>
+    <string name="lyrics_use">使用这份歌词</string>
+    <string name="lyrics_preview_failed">这份歌词加载失败，请换一个结果。</string>
+    <string name="back">返回</string>
+    <string name="lyrics_saved">歌词已保存</string>
 </resources>
