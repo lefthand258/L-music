@@ -46,6 +46,7 @@ import dev.lyra.music.R
 import dev.lyra.music.data.prefs.UserPrefs
 import dev.lyra.music.data.repo.LibraryRepository
 import dev.lyra.music.data.repo.ScanState
+import dev.lyra.music.lyrics.FloatingLyricsController
 import dev.lyra.music.online.BatchState
 import dev.lyra.music.online.MetadataService
 import dev.lyra.music.ui.permissions.Permissions
@@ -63,7 +64,10 @@ class SettingsViewModel @Inject constructor(
     private val prefs: UserPrefs,
     private val library: LibraryRepository,
     private val metadata: MetadataService,
+    val floatingLyrics: FloatingLyricsController,
 ) : ViewModel() {
+    val floatingOn = prefs.floatingLyrics.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    fun setFloating(v: Boolean) = viewModelScope.launch { prefs.setFloatingLyrics(v) }
     val batch = metadata.batch
     val needingMetadata = library.observeNeedingMetadataCount().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
     fun startBatch() = metadata.startBatch()
@@ -106,6 +110,8 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, vm: Setting
     val scan by vm.scanState.collectAsStateWithLifecycle()
     val allFiles = rememberPermissionState { Permissions.hasAllFiles() }
     val battery = rememberPermissionState { Permissions.isIgnoringBatteryOptimizations(context) }
+    val floatingOn by vm.floatingOn.collectAsStateWithLifecycle()
+    val overlayGranted = rememberPermissionState { vm.floatingLyrics.hasPermission() }
     val batch by vm.batch.collectAsStateWithLifecycle()
     val needing by vm.needingMetadata.collectAsStateWithLifecycle()
     val excluded by vm.blacklist.collectAsStateWithLifecycle()
@@ -227,6 +233,18 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, vm: Setting
                 title = "Auto-organise files / 自动整理文件",
                 subtitle = "{AlbumArtist}/{Album}/{Track} - {Title} (preview before moving)",
                 checked = autoOrganise, onToggle = { vm.setAutoOrganise(!autoOrganise) },
+            )
+            HorizontalDivider()
+
+            Section(stringResource(R.string.lyrics))
+            ToggleRow(
+                title = stringResource(R.string.floating_lyrics),
+                subtitle = if (overlayGranted) stringResource(R.string.floating_lyrics_desc) else stringResource(R.string.floating_lyrics_permission),
+                checked = floatingOn && overlayGranted,
+                onToggle = {
+                    if (!overlayGranted) runCatching { context.startActivity(vm.floatingLyrics.permissionIntent()) }
+                    else vm.setFloating(!floatingOn)
+                },
             )
             HorizontalDivider()
 

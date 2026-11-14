@@ -82,6 +82,19 @@ class TagWriter @Inject constructor() {
             }.getOrDefault(Result.FAILED)
         }
 
+    suspend fun writeGenre(path: String, genre: String): Result = withContext(Dispatchers.IO) {
+        if (!Permissions.hasAllFiles()) return@withContext Result.SKIPPED_NO_PERMISSION
+        val file = File(path)
+        if (file.extension.lowercase() !in WRITABLE || !file.canWrite()) return@withContext Result.SKIPPED_UNSUPPORTED
+        runCatching {
+            val audio = AudioFileIO.read(file)
+            val tag = audio.tagOrCreateAndSetDefault
+            if (genre.isBlank()) runCatching { tag.deleteField(FieldKey.GENRE) } else tag.setField(FieldKey.GENRE, genre)
+            audio.commit()
+            Result.WRITTEN
+        }.getOrDefault(Result.FAILED)
+    }
+
     private companion object {
         /** Formats whose tag writing in jaudiotagger is mature. */
         val WRITABLE = setOf("mp3", "flac", "m4a", "ogg")

@@ -45,3 +45,12 @@ class StoragePathsTest {
         assertNotEquals(LibraryIds.artistId("周杰伦"), LibraryIds.artistId("周杰"))
     }
 }
+
+class GenreSplitTest {
+    @Test fun split_separators() {
+        assertEquals(listOf("Pop", "Rock", "古风", "Jazz"), dev.lyra.music.data.scanner.GenreText.split("Pop; Rock / 古风、Jazz"))
+        assertEquals(listOf("流行 Pop"), dev.lyra.music.data.scanner.GenreText.split(" 流行 Pop "))
+        assertEquals(emptyList<String>(), dev.lyra.music.data.scanner.GenreText.split(null))
+        assertEquals(listOf("A"), dev.lyra.music.data.scanner.GenreText.split("A;A,a "))
+    }
+}

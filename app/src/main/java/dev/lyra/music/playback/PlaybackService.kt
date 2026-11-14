@@ -41,6 +41,7 @@ class PlaybackService : MediaSessionService() {
 
     @Inject lateinit var library: LibraryRepository
     @Inject lateinit var queuePersistence: QueuePersistence
+    @Inject lateinit var floatingLyrics: dev.lyra.music.lyrics.FloatingLyricsController
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var mediaSession: MediaSession? = null
@@ -50,6 +51,7 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         player = buildPlayer()
+        floatingLyrics.start()
         playTracker = PlayCountTracker(player) { songId ->
             scope.launch(Dispatchers.IO) { library.recordPlayed(songId) }
         }

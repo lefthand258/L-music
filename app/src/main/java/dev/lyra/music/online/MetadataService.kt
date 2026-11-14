@@ -10,6 +10,7 @@ import dev.lyra.music.data.db.MetadataOverrideEntity
 import dev.lyra.music.data.db.SongEntity
 import dev.lyra.music.data.db.withLibraryIds
 import dev.lyra.music.data.prefs.UserPrefs
+import dev.lyra.music.data.repo.GenreRepository
 import dev.lyra.music.data.repo.LibraryRepository
 import dev.lyra.music.data.scanner.TagWriter
 import dev.lyra.music.playback.PlayerConnection
@@ -63,6 +64,7 @@ class MetadataService @Inject constructor(
     private val prefs: UserPrefs,
     private val player: PlayerConnection,
     private val lyricsSearch: LyricsSearchService,
+    private val genres: GenreRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var batchJob: Job? = null
@@ -157,6 +159,7 @@ class MetadataService @Inject constructor(
                     (!updated.hasEmbeddedArt && updated.externalArtPath == null),
             ).withLibraryIds()
             library.updateSong(updated)
+            if (MetaField.GENRE in fields) runCatching { genres.linkUnlinked() }
             withContext(Dispatchers.Main) { player.refreshSong(updated) }
             ApplyResult(updated, write, coverOk)
         }

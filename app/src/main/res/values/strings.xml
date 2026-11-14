@@ -133,4 +133,15 @@
     <string name="batch_running">Checked %1$d of %2$d · %3$d updated</string>
     <string name="batch_finished">Done: checked %1$d, updated %2$d</string>
     <string name="batch_start">Start</string>
+    <string name="nav_genres">Genres</string>
+    <string name="genre_set_title">Set genres</string>
+    <string name="genre_new">New genre</string>
+    <string name="genre_name">Genre name</string>
+    <string name="genre_manage">Manage genres</string>
+    <string name="genre_add">Add genre</string>
+    <string name="genre_delete">Delete genre</string>
+    <string name="genre_delete_confirm">Delete the genre “%1$s”? %2$d songs will lose this tag; the songs themselves are not affected.</string>
+    <string name="floating_lyrics">Floating lyrics</string>
+    <string name="floating_lyrics_desc">Show the current line over other apps while playing. Drag to move, double-tap to open Lyra.</string>
+    <string name="floating_lyrics_permission">Needs “Display over other apps”. Tap to grant.</string>
 </resources>

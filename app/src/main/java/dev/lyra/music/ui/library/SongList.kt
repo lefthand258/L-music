@@ -61,6 +61,7 @@ class SongActions(
     val onAddToPlaylist: (SongEntity) -> Unit,
     /** Look up song information and cover art online. */
     val onIdentify: (SongEntity) -> Unit,
+    val onSetGenres: (SongEntity) -> Unit,
     /** "Remove from Lyra": hides the song, the file stays on the phone. */
     val onHide: (SongEntity) -> Unit,
     /** "Delete file from phone": asks for confirmation, then deletes the file itself. */
@@ -147,6 +148,7 @@ fun SongRow(
                     text = { Text(stringResource(if (song.isFavourite) R.string.action_unfavourite else R.string.action_favourite)) },
                     onClick = { menu = false; actions.onToggleFavourite(song) })
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_identify)) }, onClick = { menu = false; actions.onIdentify(song) })
+                DropdownMenuItem(text = { Text(stringResource(R.string.genre_set_title)) }, onClick = { menu = false; actions.onSetGenres(song) })
                 if (onRemoveFromPlaylist != null) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.action_remove_from_playlist)) }, onClick = { menu = false; onRemoveFromPlaylist() })
                 }

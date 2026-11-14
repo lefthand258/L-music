@@ -5,7 +5,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lyra.music.data.db.AlbumRow
 import dev.lyra.music.data.db.ArtistRow
 import dev.lyra.music.data.db.FolderRow
-import dev.lyra.music.data.db.GenreRow
 import dev.lyra.music.data.db.LyraDatabase
 import dev.lyra.music.data.db.SongEntity
 import dev.lyra.music.data.db.BlacklistedFolderEntity
@@ -45,6 +44,7 @@ class LibraryRepository @Inject constructor(
     private val tagReader: TagReader,
     private val cueScanner: CueScanner,
     private val directoryScanner: DirectoryScanner,
+    private val genreRepository: dagger.Lazy<GenreRepository>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val scanMutex = Mutex()
@@ -66,11 +66,9 @@ class LibraryRepository @Inject constructor(
     fun observeAlbums(): Flow<List<AlbumRow>> = songDao.observeAlbums()
     fun observeArtists(): Flow<List<ArtistRow>> = songDao.observeArtists()
     fun observeFolders(): Flow<List<FolderRow>> = songDao.observeFolders()
-    fun observeGenres(): Flow<List<GenreRow>> = songDao.observeGenres()
     fun observeAlbumSongs(albumId: Long) = songDao.observeByAlbum(albumId)
     fun observeArtistSongs(artistId: Long) = songDao.observeByArtist(artistId)
     fun observeFolderSongs(folder: String) = songDao.observeByFolder(folder)
-    fun observeGenreSongs(genre: String) = songDao.observeByGenre(genre)
     fun observeFavourites() = songDao.observeFavourites()
     fun observeRecentlyPlayed(limit: Int = 100) = songDao.observeRecentlyPlayed(limit)
     fun observeMostPlayed(limit: Int = 100) = songDao.observeMostPlayed(limit)
@@ -101,7 +99,6 @@ class LibraryRepository @Inject constructor(
     suspend fun setLyricsOffset(id: Long, offsetMs: Long) = songDao.setLyricsOffset(id, offsetMs)
     suspend fun setHasLyrics(id: Long, has: Boolean) = songDao.setHasLyrics(id, has)
 
-    suspend fun setGenre(ids: List<Long>, genre: String?) = ids.chunked(SQL_CHUNK).forEach { songDao.setGenre(it, genre) }
 
     // ---- Folders -------------------------------------------------------------------------
 
@@ -190,6 +187,7 @@ class LibraryRepository @Inject constructor(
                 }
                 if (batch.isNotEmpty()) songDao.updateAll(batch)
             }
+            runCatching { genreRepository.get().seedIfNeeded(); genreRepository.get().linkUnlinked() }
             val count = songDao.getAll().size
             _scanState.value = ScanState.Finished(count, System.currentTimeMillis())
         } catch (t: Throwable) {

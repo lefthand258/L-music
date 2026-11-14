@@ -68,6 +68,7 @@ import androidx.media3.common.Player
 import dev.lyra.music.R
 import dev.lyra.music.data.db.SongEntity
 import dev.lyra.music.playback.PlayerState
+import dev.lyra.music.ui.genre.GenreChips
 import dev.lyra.music.ui.library.CoverImage
 import dev.lyra.music.util.audioSummary
 import dev.lyra.music.util.formatDuration
@@ -118,7 +119,7 @@ fun MiniPlayer(vm: PlayerViewModel, onExpand: () -> Unit, modifier: Modifier = M
 }
 
 @Composable
-fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (SongEntity) -> Unit = {}) {
+fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (SongEntity) -> Unit = {}, onSetGenres: (SongEntity) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val song by vm.currentSong.collectAsStateWithLifecycle()
     var showQueue by remember { mutableStateOf(false) }
@@ -197,11 +198,10 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (S
 
             song?.let { s ->
                 val summary = audioSummary(s.codec ?: s.mimeType, s.bitDepth, s.sampleRateHz, s.bitrateKbps, s.channels)
-                if (summary.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.fillMaxWidth()) {
-                        AssistChip(onClick = {}, label = { Text(summary, style = MaterialTheme.typography.labelSmall) })
-                    }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (summary.isNotBlank()) AssistChip(onClick = {}, label = { Text(summary, style = MaterialTheme.typography.labelSmall) })
+                    GenreChips(songId = s.id, onClick = { onSetGenres(s) })
                 }
             }
 

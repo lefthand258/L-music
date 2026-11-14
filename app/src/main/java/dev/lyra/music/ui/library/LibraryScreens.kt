@@ -71,12 +71,13 @@ fun LibraryHome(
     currentSongId: Long?,
     bottomPadding: PaddingValues,
     playlistsTab: @Composable (PaddingValues) -> Unit,
+    genresTab: @Composable (PaddingValues) -> Unit,
     onOpenAlbum: (Long) -> Unit,
     onOpenArtist: (Long) -> Unit,
     onOpenFolder: (String) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    val tabs = listOf(R.string.nav_songs, R.string.nav_playlists, R.string.nav_albums, R.string.nav_artists, R.string.nav_folders)
+    val tabs = listOf(R.string.nav_songs, R.string.nav_playlists, R.string.nav_albums, R.string.nav_artists, R.string.nav_genres, R.string.nav_folders)
     val pager = rememberPagerState { tabs.size }
     val scope = rememberCoroutineScope()
     val scanState by vm.scanState.collectAsStateWithLifecycle()
@@ -179,6 +180,7 @@ fun LibraryHome(
                         }
                     }
                 }
+                4 -> genresTab(padding)
                 else -> {
                     val folders by vm.folders.collectAsStateWithLifecycle()
                     LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {

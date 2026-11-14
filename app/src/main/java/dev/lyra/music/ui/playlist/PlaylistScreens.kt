@@ -118,7 +118,7 @@ fun PlaylistMenu(
 }
 
 @Composable
-fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, label: String? = null, onConfirm: (String) -> Unit) {
     var text by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -126,7 +126,7 @@ fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm:
         text = {
             OutlinedTextField(
                 value = text, onValueChange = { text = it.take(120) }, singleLine = true,
-                label = { Text(stringResource(R.string.playlist_name)) }
+                label = { Text(label ?: stringResource(R.string.playlist_name)) }
             )
         },
         confirmButton = {

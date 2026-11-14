@@ -129,4 +129,15 @@
     <string name="batch_running">已检查 %1$d / %2$d · 已更新 %3$d</string>
     <string name="batch_finished">完成：检查 %1$d 首，更新 %2$d 首</string>
     <string name="batch_start">开始</string>
+    <string name="nav_genres">流派</string>
+    <string name="genre_set_title">设置流派</string>
+    <string name="genre_new">新建流派</string>
+    <string name="genre_name">流派名称</string>
+    <string name="genre_manage">管理流派</string>
+    <string name="genre_add">添加流派</string>
+    <string name="genre_delete">删除流派</string>
+    <string name="genre_delete_confirm">删除流派「%1$s」？%2$d 首歌会失去这个标签，歌曲本身不受影响。</string>
+    <string name="floating_lyrics">桌面悬浮歌词</string>
+    <string name="floating_lyrics_desc">播放时在其他应用上方显示当前歌词。拖动可移动位置，双击打开 Lyra。</string>
+    <string name="floating_lyrics_permission">需要「显示在其他应用上层」权限，点击去授权。</string>
 </resources>

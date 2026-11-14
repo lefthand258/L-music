@@ -38,7 +38,8 @@ data class FolderRow(
 )
 
 data class GenreRow(
-    val genre: String,
+    val id: Long,
+    val name: String,
     val songCount: Int,
 )
 
@@ -111,9 +112,6 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE isHidden = 0 AND folderPath = :folder ORDER BY fileName COLLATE NOCASE ASC")
     fun observeByFolder(folder: String): Flow<List<SongEntity>>
 
-    @Query("SELECT * FROM songs WHERE isHidden = 0 AND genre = :genre ORDER BY title COLLATE NOCASE ASC")
-    fun observeByGenre(genre: String): Flow<List<SongEntity>>
-
     @Query(
         """
         SELECT albumId, album, albumArtist, MAX(year) AS year, COUNT(*) AS songCount,
@@ -139,9 +137,6 @@ interface SongDao {
 
     @Query("SELECT folderPath, COUNT(*) AS songCount FROM songs WHERE isHidden = 0 GROUP BY folderPath ORDER BY folderPath COLLATE NOCASE ASC")
     fun observeFolders(): Flow<List<FolderRow>>
-
-    @Query("SELECT IFNULL(genre, '') AS genre, COUNT(*) AS songCount FROM songs WHERE isHidden = 0 GROUP BY genre ORDER BY genre COLLATE NOCASE ASC")
-    fun observeGenres(): Flow<List<GenreRow>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(songs: List<SongEntity>): List<Long>
@@ -185,8 +180,11 @@ interface SongDao {
     @Query("UPDATE songs SET hasLyrics = :has WHERE id = :id")
     suspend fun setHasLyrics(id: Long, has: Boolean)
 
-    @Query("UPDATE songs SET genre = :genre WHERE id IN (:ids)")
-    suspend fun setGenre(ids: List<Long>, genre: String?)
+    @Query("UPDATE songs SET genre = :genre WHERE id = :id")
+    suspend fun setGenreString(id: Long, genre: String?)
+
+    @Query("SELECT id, genre FROM songs WHERE genre IS NOT NULL AND genre != '' AND id NOT IN (SELECT songId FROM song_genres)")
+    suspend fun songsWithUnlinkedGenre(): List<SongGenreText>
 
     /**
      * Upsert by ([SongEntity.path], [SongEntity.cueIndex]): keeps user state (favourites, play counts, overrides) for files
@@ -409,4 +407,69 @@ interface SettingsDao {
 
     @Query("DELETE FROM library_folders WHERE treeUri = :treeUri")
     suspend fun removeLibraryFolder(treeUri: String)
+}
+
+data class SongGenreText(val id: Long, val genre: String?)
+
+@Dao
+interface GenreDao {
+    @Query("SELECT * FROM genres ORDER BY sortOrder ASC, name COLLATE NOCASE ASC")
+    fun observeAll(): Flow<List<GenreEntity>>
+
+    @Query("SELECT * FROM genres ORDER BY sortOrder ASC, name COLLATE NOCASE ASC")
+    suspend fun getAll(): List<GenreEntity>
+
+    @Query(
+        """
+        SELECT g.id, g.name, COUNT(s.id) AS songCount FROM genres g
+        LEFT JOIN song_genres sg ON sg.genreId = g.id
+        LEFT JOIN songs s ON s.id = sg.songId AND s.isHidden = 0
+        GROUP BY g.id ORDER BY g.sortOrder ASC, g.name COLLATE NOCASE ASC
+        """
+    )
+    fun observeWithCounts(): Flow<List<GenreRow>>
+
+    @Query("SELECT * FROM genres WHERE name = :name COLLATE NOCASE LIMIT 1")
+    suspend fun getByName(name: String): GenreEntity?
+
+    @Query("SELECT * FROM genres WHERE id = :id")
+    fun observeById(id: Long): Flow<GenreEntity?>
+
+    @Query("SELECT COUNT(*) FROM genres")
+    suspend fun count(): Int
+
+    @Query("SELECT IFNULL(MAX(sortOrder), 0) FROM genres")
+    suspend fun maxSortOrder(): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(genre: GenreEntity): Long
+
+    @Query("UPDATE genres SET name = :name WHERE id = :id")
+    suspend fun rename(id: Long, name: String)
+
+    @Query("DELETE FROM genres WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query(
+        """
+        SELECT s.* FROM songs s INNER JOIN song_genres sg ON sg.songId = s.id
+        WHERE sg.genreId = :genreId AND s.isHidden = 0 ORDER BY s.title COLLATE NOCASE ASC
+        """
+    )
+    fun observeSongs(genreId: Long): Flow<List<SongEntity>>
+
+    @Query("SELECT g.* FROM genres g INNER JOIN song_genres sg ON sg.genreId = g.id WHERE sg.songId = :songId ORDER BY g.sortOrder ASC, g.name COLLATE NOCASE ASC")
+    fun observeForSong(songId: Long): Flow<List<GenreEntity>>
+
+    @Query("SELECT g.* FROM genres g INNER JOIN song_genres sg ON sg.genreId = g.id WHERE sg.songId = :songId ORDER BY g.sortOrder ASC, g.name COLLATE NOCASE ASC")
+    suspend fun forSong(songId: Long): List<GenreEntity>
+
+    @Query("SELECT songId FROM song_genres WHERE genreId = :genreId")
+    suspend fun songIdsFor(genreId: Long): List<Long>
+
+    @Query("DELETE FROM song_genres WHERE songId = :songId")
+    suspend fun clearSong(songId: Long)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun link(links: List<SongGenreEntity>)
 }

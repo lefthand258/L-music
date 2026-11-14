@@ -20,6 +20,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var prefs: UserPrefs
+    @Inject lateinit var floatingLyrics: dev.lyra.music.lyrics.FloatingLyricsController
 
     /** Incremented whenever an "open player" intent arrives so the UI can react. */
     private var openPlayerSignal by mutableStateOf(0)
@@ -28,6 +29,7 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        floatingLyrics.start()
         handleIntent(intent)
         setContent {
             val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = 0)

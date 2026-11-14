@@ -188,3 +188,24 @@ data class LibraryFolderEntity(
     val displayName: String,
     val addedAt: Long = System.currentTimeMillis(),
 )
+
+/** A genre tag. The list is the user's: built-in entries can be renamed or deleted like any other. */
+@Entity(tableName = "genres", indices = [Index(value = ["name"], unique = true)])
+data class GenreEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val sortOrder: Int = 0,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+/** A song can carry any number of genre tags. */
+@Entity(
+    tableName = "song_genres",
+    primaryKeys = ["songId", "genreId"],
+    foreignKeys = [
+        ForeignKey(entity = SongEntity::class, parentColumns = ["id"], childColumns = ["songId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = GenreEntity::class, parentColumns = ["id"], childColumns = ["genreId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index("genreId")]
+)
+data class SongGenreEntity(val songId: Long, val genreId: Long)

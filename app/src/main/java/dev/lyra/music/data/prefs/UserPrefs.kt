@@ -32,6 +32,8 @@ class UserPrefs @Inject constructor(@ApplicationContext private val context: Con
         val ORGANISE_TEMPLATE = stringPreferencesKey("organise_template")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val THEME_MODE = intPreferencesKey("theme_mode") // 0 system, 1 light, 2 dark
+        val GENRES_SEEDED = booleanPreferencesKey("genres_seeded")
+        val FLOATING_LYRICS = booleanPreferencesKey("floating_lyrics")
     }
 
     val songSort: Flow<SongSort> = context.dataStore.data.map { p ->
@@ -47,6 +49,8 @@ class UserPrefs @Inject constructor(@ApplicationContext private val context: Con
         it[Keys.ORGANISE_TEMPLATE] ?: "{AlbumArtist}/{Album}/{Track:02} - {Title}"
     }
     val dynamicColor: Flow<Boolean> = context.dataStore.data.map { it[Keys.DYNAMIC_COLOR] ?: true }
+    val genresSeeded: Flow<Boolean> = context.dataStore.data.map { it[Keys.GENRES_SEEDED] ?: false }
+    val floatingLyrics: Flow<Boolean> = context.dataStore.data.map { it[Keys.FLOATING_LYRICS] ?: false }
     val themeMode: Flow<Int> = context.dataStore.data.map { it[Keys.THEME_MODE] ?: 0 }
 
     suspend fun setSongSort(sort: SongSort) = context.dataStore.edit { it[Keys.SONG_SORT] = sort.name }
@@ -58,5 +62,7 @@ class UserPrefs @Inject constructor(@ApplicationContext private val context: Con
     suspend fun setOrganiseTemplate(v: String) = context.dataStore.edit { it[Keys.ORGANISE_TEMPLATE] = v }
     suspend fun setDynamicColor(v: Boolean) = context.dataStore.edit { it[Keys.DYNAMIC_COLOR] = v }
     suspend fun setThemeMode(v: Int) = context.dataStore.edit { it[Keys.THEME_MODE] = v }
+    suspend fun setGenresSeeded(v: Boolean) = context.dataStore.edit { it[Keys.GENRES_SEEDED] = v }
+    suspend fun setFloatingLyrics(v: Boolean) = context.dataStore.edit { it[Keys.FLOATING_LYRICS] = v }
     suspend fun setMinDurationMs(v: Long) = context.dataStore.edit { it[Keys.MIN_DURATION_MS] = v }
 }

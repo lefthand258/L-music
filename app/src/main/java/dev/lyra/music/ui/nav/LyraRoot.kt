@@ -44,6 +44,10 @@ import dev.lyra.music.ui.library.LibraryHome
 import dev.lyra.music.ui.library.LibraryViewModel
 import dev.lyra.music.ui.library.SongActions
 import dev.lyra.music.ui.library.SongCollectionScreen
+import dev.lyra.music.ui.genre.GenreManageScreen
+import dev.lyra.music.ui.genre.GenrePickerDialog
+import dev.lyra.music.ui.genre.GenreViewModel
+import dev.lyra.music.ui.genre.GenresTab
 import dev.lyra.music.ui.metadata.MetadataSheet
 import dev.lyra.music.ui.permissions.OnboardingScreen
 import dev.lyra.music.ui.permissions.Permissions
@@ -70,6 +74,9 @@ private object Routes {
     const val PLAYLIST = "playlist/{id}"
     const val SMART = "smart/{kind}"
     const val SETTINGS = "settings"
+    const val GENRE = "genre/{id}"
+    const val GENRES_MANAGE = "genres/manage"
+    fun genre(id: Long) = "genre/$id"
     fun album(id: Long) = "album/$id"
     fun artist(id: Long) = "artist/$id"
     fun folder(path: String) = "folder/${Uri.encode(path)}"
@@ -122,6 +129,8 @@ private fun MainScaffold(openPlayerSignal: Int) {
     var nameRequest by remember { mutableStateOf<NameRequest?>(null) }
     var deleteFileSong by remember { mutableStateOf<SongEntity?>(null) }
     var identifySong by remember { mutableStateOf<SongEntity?>(null) }
+    var genreSong by remember { mutableStateOf<SongEntity?>(null) }
+    val genreVm: GenreViewModel = hiltViewModel()
     var deletePlaylist by remember { mutableStateOf<Pair<Long, String>?>(null) }
     var pendingSystemDeletePaths by remember { mutableStateOf<List<String>>(emptyList()) }
     var exportM3uPlaylistId by remember { mutableStateOf<Long?>(null) }
@@ -185,6 +194,7 @@ private fun MainScaffold(openPlayerSignal: Int) {
             onToggleFavourite = libraryVm::toggleFavourite,
             onAddToPlaylist = { addToPlaylistSong = it },
             onIdentify = { identifySong = it },
+            onSetGenres = { genreSong = it },
             onHide = libraryVm::hide,
             onDeleteFile = { deleteFileSong = it },
         )
@@ -217,6 +227,9 @@ private fun MainScaffold(openPlayerSignal: Int) {
                                 csvSaver.launch("lyra-playlists.csv")
                             },
                         )
+                    },
+                    genresTab = { padding ->
+                        GenresTab(padding, onOpen = { nav.navigate(Routes.genre(it)) }, onManage = { nav.navigate(Routes.GENRES_MANAGE) }, vm = genreVm)
                     },
                     onOpenAlbum = { nav.navigate(Routes.album(it)) },
                     onOpenArtist = { nav.navigate(Routes.artist(it)) },
@@ -294,6 +307,19 @@ private fun MainScaffold(openPlayerSignal: Int) {
                     actions = actions, onBack = { nav.popBackStack() },
                 )
             }
+            composable(Routes.GENRE, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                val id = entry.arguments?.getLong("id") ?: 0L
+                val genre by remember(id) { genreVm.genre(id) }.collectAsStateWithLifecycle(initialValue = null)
+                val songs by remember(id) { genreVm.songsOf(id) }.collectAsStateWithLifecycle(initialValue = emptyList())
+                SongCollectionScreen(
+                    title = genre?.name ?: "", subtitle = null,
+                    songs = songs, currentSongId = playerState.songId, bottomPadding = bottomPadding,
+                    actions = actions, onBack = { nav.popBackStack() },
+                )
+            }
+            composable(Routes.GENRES_MANAGE) {
+                GenreManageScreen(bottomPadding = bottomPadding, onBack = { nav.popBackStack() }, vm = genreVm)
+            }
             composable(Routes.SETTINGS) {
                 SettingsScreen(onBack = { nav.popBackStack() }, bottomPadding = bottomPadding)
             }
@@ -313,11 +339,15 @@ private fun MainScaffold(openPlayerSignal: Int) {
             enter = slideInVertically(tween(260)) { it } + fadeIn(tween(200)),
             exit = slideOutVertically(tween(220)) { it } + fadeOut(tween(160)),
         ) {
-            NowPlayingScreen(playerVm, onCollapse = { playerExpanded = false }, onIdentify = { identifySong = it })
+            NowPlayingScreen(playerVm, onCollapse = { playerExpanded = false }, onIdentify = { identifySong = it }, onSetGenres = { genreSong = it })
         }
     }
 
     // ---- Dialogs -------------------------------------------------------------------------------
+
+    genreSong?.let { song ->
+        GenrePickerDialog(song = song, onDismiss = { genreSong = null }, onManage = { genreSong = null; nav.navigate(Routes.GENRES_MANAGE) }, vm = genreVm)
+    }
 
     identifySong?.let { song ->
         MetadataSheet(song = song, onDismiss = { identifySong = null })
