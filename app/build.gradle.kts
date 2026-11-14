@@ -7,6 +7,15 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+// Version: 0.<n> where n is the git commit count, so every build on main gets the next
+// number automatically (the very first commit was 0.1). Falls back to 0.0 outside git.
+val gitCommitCount: Int = runCatching {
+    providers.exec {
+        commandLine("git", "rev-list", "--count", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().toInt()
+}.getOrDefault(0)
+
 android {
     namespace = "dev.lyra.music"
     compileSdk = 35
@@ -15,8 +24,8 @@ android {
         applicationId = "dev.lyra.music"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = gitCommitCount.coerceAtLeast(1)
+        versionName = "0.${gitCommitCount.coerceAtLeast(1)}"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -47,7 +56,6 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
         }
         release {
             isMinifyEnabled = true
@@ -89,6 +97,14 @@ android {
     }
     lint {
         abortOnError = false
+    }
+
+    // Name the APK files after the version so downloads are tellable apart.
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }.forEach { output ->
+            output.outputFileName = "LyraMusic-${variant.versionName}-${variant.buildType.name}.apk"
+        }
     }
 }
 
