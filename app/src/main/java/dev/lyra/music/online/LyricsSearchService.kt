@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import dagger.hilt.android.qualifiers.ApplicationContext
-import dev.lyra.music.BuildConfig
 import dev.lyra.music.data.db.SongEntity
 import dev.lyra.music.lyrics.LrcParser
 import kotlinx.coroutines.Dispatchers
@@ -15,10 +14,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okio.Buffer
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,15 +29,8 @@ import javax.inject.Singleton
 @Singleton
 class LyricsSearchService @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val http: SafeHttp,
 ) {
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .callTimeout(30, TimeUnit.SECONDS)
-        .followRedirects(false)
-        .followSslRedirects(false)
-        .build()
-
     fun queryFor(song: SongEntity): LyricsQuery {
         val guess = FileNameGuess.guess(song.fileName)
         val tagged = song.tagsFullyScanned || song.artist.isNotBlank()
@@ -55,7 +43,7 @@ class LyricsSearchService @Inject constructor(
     }
 
     /** Searches the chosen sources in parallel and returns candidates, best match first. */
-    suspend fun search(query: LyricsQuery, sources: Set<OnlineSource> = OnlineSource.entries.toSet()): List<LyricsCandidate> =
+    suspend fun search(query: LyricsQuery, sources: Set<OnlineSource> = OnlineSource.LYRICS.toSet()): List<LyricsCandidate> =
         withContext(Dispatchers.IO) {
             if (query.title.isBlank()) return@withContext emptyList()
             val all = supervisorScope {
@@ -87,6 +75,7 @@ class LyricsSearchService @Inject constructor(
                         .addQueryParameter("format", "json").addQueryParameter("nobase64", "1").build(),
                     referer = "https://y.qq.com/",
                 )?.let(OnlineParsers::qqLyric)
+                OnlineSource.MUSICBRAINZ -> null
             } ?: return@runCatching null
             normalise(fetched)
         }.getOrNull()
@@ -138,6 +127,7 @@ class LyricsSearchService @Inject constructor(
                 .addQueryParameter("p", "1").addQueryParameter("n", "15").build()
             get(url, referer = "https://y.qq.com/")?.let(OnlineParsers::qqSearch).orEmpty()
         }
+        OnlineSource.MUSICBRAINZ -> emptyList() // no lyrics there
     }
 
     private fun keywords(q: LyricsQuery) = listOf(q.title, q.artist).filter { it.isNotBlank() }.joinToString(" ").take(120)
@@ -151,32 +141,9 @@ class LyricsSearchService @Inject constructor(
         return merged.copy(meta = emptyMap()).toLrc().take(OnlineParsers.MAX_LYRICS_CHARS)
     }
 
-    /** GET returning the body as text, or null on any non-200 / oversized / non-HTTPS response. */
-    private fun get(url: HttpUrl, referer: String? = null): String? {
-        if (!url.isHttps || url.host !in ALLOWED_HOSTS) return null
-        val request = Request.Builder().url(url)
-            .header("User-Agent", "LyraMusic/${BuildConfig.VERSION_NAME} (https://github.com/lefthand258/L-music)")
-            .header("Accept", "application/json")
-            .apply { if (referer != null) header("Referer", referer) }
-            .build()
-        client.newCall(request).execute().use { resp ->
-            if (resp.code != 200) return null
-            val source = resp.body?.source() ?: return null
-            val buffer = Buffer()
-            var total = 0L
-            while (true) {
-                val n = source.read(buffer, 64 * 1024)
-                if (n < 0) break
-                total += n
-                if (total > MAX_BODY_BYTES) return null
-            }
-            return buffer.readUtf8()
-        }
-    }
+    private fun get(url: HttpUrl, referer: String? = null): String? = http.getText(url, referer)
 
     private companion object {
-        const val MAX_BODY_BYTES = 2L * 1024 * 1024
         const val PROVIDER_TIMEOUT_MS = 25_000L
-        val ALLOWED_HOSTS = setOf("lrclib.net", "music.163.com", "c.y.qq.com")
     }
 }

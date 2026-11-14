@@ -46,6 +46,8 @@ import dev.lyra.music.R
 import dev.lyra.music.data.prefs.UserPrefs
 import dev.lyra.music.data.repo.LibraryRepository
 import dev.lyra.music.data.repo.ScanState
+import dev.lyra.music.online.BatchState
+import dev.lyra.music.online.MetadataService
 import dev.lyra.music.ui.permissions.Permissions
 import dev.lyra.music.ui.permissions.rememberPermissionState
 import dev.lyra.music.util.StoragePaths
@@ -60,7 +62,13 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val prefs: UserPrefs,
     private val library: LibraryRepository,
+    private val metadata: MetadataService,
 ) : ViewModel() {
+    val batch = metadata.batch
+    val needingMetadata = library.observeNeedingMetadataCount().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    fun startBatch() = metadata.startBatch()
+    fun cancelBatch() = metadata.cancelBatch()
+
     /** null until DataStore has been read once. */
     val onboarded: StateFlow<Boolean?> = prefs.onboarded.map<Boolean, Boolean?> { it }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -98,6 +106,8 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, vm: Setting
     val scan by vm.scanState.collectAsStateWithLifecycle()
     val allFiles = rememberPermissionState { Permissions.hasAllFiles() }
     val battery = rememberPermissionState { Permissions.isIgnoringBatteryOptimizations(context) }
+    val batch by vm.batch.collectAsStateWithLifecycle()
+    val needing by vm.needingMetadata.collectAsStateWithLifecycle()
     val excluded by vm.blacklist.collectAsStateWithLifecycle()
     val extraFolders by vm.libraryFolders.collectAsStateWithLifecycle()
     val unsupported = stringResource(R.string.folders_unsupported)
@@ -197,6 +207,22 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, vm: Setting
                     }
                 }
             }
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.batch_title)) },
+                supportingContent = {
+                    Text(
+                        when (val b = batch) {
+                            is BatchState.Running -> stringResource(R.string.batch_running, b.done, b.total, b.updated)
+                            is BatchState.Finished -> stringResource(R.string.batch_finished, b.checked, b.updated)
+                            BatchState.Idle -> stringResource(R.string.batch_idle, needing)
+                        }
+                    )
+                },
+                trailingContent = {
+                    if (batch is BatchState.Running) TextButton(onClick = { vm.cancelBatch() }) { Text(stringResource(R.string.cancel)) }
+                    else TextButton(enabled = needing > 0, onClick = { vm.startBatch() }) { Text(stringResource(R.string.batch_start)) }
+                }
+            )
             ToggleRow(
                 title = "Auto-organise files / 自动整理文件",
                 subtitle = "{AlbumArtist}/{Album}/{Track} - {Title} (preview before moving)",

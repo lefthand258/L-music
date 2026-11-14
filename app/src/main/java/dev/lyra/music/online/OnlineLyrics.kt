@@ -12,6 +12,14 @@ enum class OnlineSource(val label: String) {
     LRCLIB("LRCLIB"),
     NETEASE("网易云"),
     QQ("QQ音乐"),
+    MUSICBRAINZ("MusicBrainz");
+
+    companion object {
+        /** Sources that can provide lyrics. */
+        val LYRICS: List<OnlineSource> = listOf(LRCLIB, NETEASE, QQ)
+        /** Sources that can provide song information and cover art. */
+        val METADATA: List<OnlineSource> = listOf(NETEASE, QQ, MUSICBRAINZ)
+    }
 }
 
 /** What we know about the song we want lyrics for. */
@@ -193,12 +201,14 @@ object MatchScorer {
     /** Candidates at or above this are applied automatically; below it the user decides. */
     const val AUTO_APPLY = 0.85f
 
-    fun score(q: LyricsQuery, c: LyricsCandidate): Float {
-        val title = similarity(q.title, c.title)
-        val artistKnown = q.artist.isNotBlank() && c.artist.isNotBlank()
-        val artist = if (artistKnown) artistSimilarity(q.artist, c.artist) else 0f
-        val durationKnown = q.durationMs > 0 && c.durationMs > 0
-        val duration = if (durationKnown) durationScore(q.durationMs, c.durationMs) else 0f
+    fun score(q: LyricsQuery, c: LyricsCandidate): Float = score(q, c.title, c.artist, c.durationMs)
+
+    fun score(q: LyricsQuery, cTitle: String, cArtist: String, cDurationMs: Long): Float {
+        val title = similarity(q.title, cTitle)
+        val artistKnown = q.artist.isNotBlank() && cArtist.isNotBlank()
+        val artist = if (artistKnown) artistSimilarity(q.artist, cArtist) else 0f
+        val durationKnown = q.durationMs > 0 && cDurationMs > 0
+        val duration = if (durationKnown) durationScore(q.durationMs, cDurationMs) else 0f
 
         // Weighted over the evidence we actually have; missing evidence caps the confidence
         // so that a title-only match can never reach the auto-apply threshold.
@@ -209,8 +219,8 @@ object MatchScorer {
             else -> title * 0.6f
         }
         // A clearly different length means a different recording (live / remix / cover).
-        if (durationKnown && abs(q.durationMs - c.durationMs) > 15_000) s *= 0.6f
-        if (isVariant(c.title) && !isVariant(q.title)) s *= 0.85f
+        if (durationKnown && abs(q.durationMs - cDurationMs) > 15_000) s *= 0.6f
+        if (isVariant(cTitle) && !isVariant(q.title)) s *= 0.85f
         return s.coerceIn(0f, 1f)
     }
 

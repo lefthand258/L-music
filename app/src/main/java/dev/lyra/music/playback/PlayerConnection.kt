@@ -220,6 +220,16 @@ class PlayerConnection @Inject constructor(
         }
     }
 
+    /** Pushes changed song information (title, artist, cover…) into the queue without restarting playback. */
+    fun refreshSong(song: SongEntity) {
+        val c = controller ?: return
+        if (song.cueIndex > 0) return
+        val item = song.toMediaItem()
+        for (i in 0 until c.mediaItemCount) {
+            if (c.getMediaItemAt(i).mediaId == item.mediaId) c.replaceMediaItem(i, item)
+        }
+    }
+
     /** Restore the last saved queue without starting playback (used on cold start). */
     fun restoreQueue(items: List<MediaItem>, index: Int, positionMs: Long, shuffle: Boolean, repeat: Int) {
         val c = controller ?: return

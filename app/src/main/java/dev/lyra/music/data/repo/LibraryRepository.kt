@@ -84,6 +84,9 @@ class LibraryRepository @Inject constructor(
         return ids.mapNotNull { byId[it] }
     }
     suspend fun getSongsByPath(path: String): List<SongEntity> = songDao.getByPath(path)
+    suspend fun updateSong(song: SongEntity) = songDao.update(song)
+    suspend fun getSongsNeedingMetadata(): List<SongEntity> = songDao.getNeedingMetadata()
+    fun observeNeedingMetadataCount(): Flow<Int> = songDao.observeNeedingMetadataCount()
     suspend fun getAllSongs(): List<SongEntity> = songDao.getAll()
 
     suspend fun setFavourite(id: Long, fav: Boolean) = songDao.setFavourite(id, fav)

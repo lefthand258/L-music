@@ -44,6 +44,7 @@ import dev.lyra.music.ui.library.LibraryHome
 import dev.lyra.music.ui.library.LibraryViewModel
 import dev.lyra.music.ui.library.SongActions
 import dev.lyra.music.ui.library.SongCollectionScreen
+import dev.lyra.music.ui.metadata.MetadataSheet
 import dev.lyra.music.ui.permissions.OnboardingScreen
 import dev.lyra.music.ui.permissions.Permissions
 import dev.lyra.music.ui.player.MiniPlayer
@@ -120,6 +121,7 @@ private fun MainScaffold(openPlayerSignal: Int) {
     var addToPlaylistSong by remember { mutableStateOf<SongEntity?>(null) }
     var nameRequest by remember { mutableStateOf<NameRequest?>(null) }
     var deleteFileSong by remember { mutableStateOf<SongEntity?>(null) }
+    var identifySong by remember { mutableStateOf<SongEntity?>(null) }
     var deletePlaylist by remember { mutableStateOf<Pair<Long, String>?>(null) }
     var pendingSystemDeletePaths by remember { mutableStateOf<List<String>>(emptyList()) }
     var exportM3uPlaylistId by remember { mutableStateOf<Long?>(null) }
@@ -182,6 +184,7 @@ private fun MainScaffold(openPlayerSignal: Int) {
             onAddToQueue = libraryVm::addToQueue,
             onToggleFavourite = libraryVm::toggleFavourite,
             onAddToPlaylist = { addToPlaylistSong = it },
+            onIdentify = { identifySong = it },
             onHide = libraryVm::hide,
             onDeleteFile = { deleteFileSong = it },
         )
@@ -310,11 +313,15 @@ private fun MainScaffold(openPlayerSignal: Int) {
             enter = slideInVertically(tween(260)) { it } + fadeIn(tween(200)),
             exit = slideOutVertically(tween(220)) { it } + fadeOut(tween(160)),
         ) {
-            NowPlayingScreen(playerVm, onCollapse = { playerExpanded = false })
+            NowPlayingScreen(playerVm, onCollapse = { playerExpanded = false }, onIdentify = { identifySong = it })
         }
     }
 
     // ---- Dialogs -------------------------------------------------------------------------------
+
+    identifySong?.let { song ->
+        MetadataSheet(song = song, onDismiss = { identifySong = null })
+    }
 
     addToPlaylistSong?.let { song ->
         AddToPlaylistDialog(

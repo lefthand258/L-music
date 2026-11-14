@@ -53,7 +53,10 @@ class CoverArtFetcher(
 ) : Fetcher {
 
     override suspend fun fetch(): FetchResult? {
-        return embedded() ?: external() ?: mediaStore()
+        // A cover picked inside Lyra (stored in the app's own covers folder) wins over the
+        // picture embedded in the file; a folder.jpg next to the file does not.
+        val chosen = data.externalArtPath?.contains(CHOSEN_COVER_DIR) == true
+        return if (chosen) external() ?: embedded() ?: mediaStore() else embedded() ?: external() ?: mediaStore()
     }
 
     private fun embedded(): FetchResult? {
@@ -105,6 +108,7 @@ class CoverArtFetcher(
 
     private companion object {
         const val MAX_BYTES = 15 * 1024 * 1024
+        const val CHOSEN_COVER_DIR = "/files/covers/"
     }
 }
 

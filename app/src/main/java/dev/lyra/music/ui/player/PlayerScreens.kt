@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -117,7 +118,7 @@ fun MiniPlayer(vm: PlayerViewModel, onExpand: () -> Unit, modifier: Modifier = M
 }
 
 @Composable
-fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit) {
+fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (SongEntity) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val song by vm.currentSong.collectAsStateWithLifecycle()
     var showQueue by remember { mutableStateOf(false) }
@@ -136,6 +137,9 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit) {
                     stringResource(R.string.now_playing), modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge
                 )
+                IconButton(onClick = { song?.let(onIdentify) }) {
+                    Icon(Icons.Default.AutoFixHigh, stringResource(R.string.action_identify))
+                }
                 IconButton(onClick = { showLyrics = !showLyrics }) {
                     Icon(
                         Icons.Default.Lyrics, stringResource(R.string.lyrics),

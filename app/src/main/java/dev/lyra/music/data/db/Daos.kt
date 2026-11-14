@@ -161,6 +161,12 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE isHidden = 0 AND playCount > 0 ORDER BY playCount DESC, lastPlayed DESC LIMIT :limit")
     fun observeMostPlayed(limit: Int): Flow<List<SongEntity>>
 
+    @Query("SELECT * FROM songs WHERE isHidden = 0 AND needsMetadata = 1 ORDER BY id ASC")
+    suspend fun getNeedingMetadata(): List<SongEntity>
+
+    @Query("SELECT COUNT(*) FROM songs WHERE isHidden = 0 AND needsMetadata = 1")
+    fun observeNeedingMetadataCount(): Flow<Int>
+
     @Query("DELETE FROM songs WHERE path IN (:paths)")
     suspend fun deleteByPaths(paths: List<String>)
 
@@ -337,6 +343,9 @@ interface HistoryDao {
 
 @Dao
 interface MetadataOverrideDao {
+    @Query("SELECT * FROM metadata_overrides WHERE songId = :songId AND field = :field LIMIT 1")
+    suspend fun get(songId: Long, field: String): MetadataOverrideEntity?
+
     @Query("SELECT * FROM metadata_overrides WHERE songId = :songId")
     suspend fun forSong(songId: Long): List<MetadataOverrideEntity>
 

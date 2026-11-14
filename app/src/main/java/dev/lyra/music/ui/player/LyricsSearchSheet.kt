@@ -60,7 +60,7 @@ fun LyricsSearchSheet(vm: PlayerViewModel, onDismiss: () -> Unit) {
     val savedMsg = stringResource(R.string.lyrics_saved)
 
     fun runSearch() {
-        if (title.isNotBlank()) vm.searchLyrics(title, artist, source?.let { setOf(it) } ?: OnlineSource.entries.toSet())
+        if (title.isNotBlank()) vm.searchLyrics(title, artist, source?.let { setOf(it) } ?: OnlineSource.LYRICS.toSet())
     }
 
     // Search straight away with what the tags (or file name) say.
@@ -101,7 +101,7 @@ fun LyricsSearchSheet(vm: PlayerViewModel, onDismiss: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(selected = source == null, onClick = { source = null }, label = { Text(stringResource(R.string.source_all)) })
-                OnlineSource.entries.forEach { s ->
+                OnlineSource.LYRICS.forEach { s ->
                     FilterChip(selected = source == s, onClick = { source = s }, label = { Text(s.label) })
                 }
             }

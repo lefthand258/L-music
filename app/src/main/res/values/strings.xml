@@ -115,4 +115,22 @@
     <string name="lyrics_preview_failed">Could not load these lyrics. Try another result.</string>
     <string name="back">Back</string>
     <string name="lyrics_saved">Lyrics saved</string>
+    <string name="meta_title">Identify online</string>
+    <string name="meta_empty">Nothing found. Try editing the title or artist.</string>
+    <string name="meta_apply">Apply selected</string>
+    <string name="meta_current">Now</string>
+    <string name="meta_new">New</string>
+    <string name="field_album">Album</string>
+    <string name="field_year">Year</string>
+    <string name="field_genre">Genre</string>
+    <string name="field_cover">Cover</string>
+    <string name="meta_applied_file">Saved and written to the file</string>
+    <string name="meta_applied_db">Saved in Lyra (file not changed)</string>
+    <string name="meta_applied_file_failed">Saved in Lyra, but writing to the file failed</string>
+    <string name="meta_cover_failed">The cover could not be downloaded</string>
+    <string name="batch_title">Fill in missing song info</string>
+    <string name="batch_idle">%1$d songs lack artist, album or cover. Only empty fields are filled, and only from confident matches.</string>
+    <string name="batch_running">Checked %1$d of %2$d · %3$d updated</string>
+    <string name="batch_finished">Done: checked %1$d, updated %2$d</string>
+    <string name="batch_start">Start</string>
 </resources>
