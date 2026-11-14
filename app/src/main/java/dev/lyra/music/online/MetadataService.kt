@@ -65,6 +65,7 @@ class MetadataService @Inject constructor(
     private val player: PlayerConnection,
     private val lyricsSearch: LyricsSearchService,
     private val genres: GenreRepository,
+    private val organizer: dagger.Lazy<dev.lyra.music.organize.FileOrganizer>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var batchJob: Job? = null
@@ -161,8 +162,62 @@ class MetadataService @Inject constructor(
             library.updateSong(updated)
             if (MetaField.GENRE in fields) runCatching { genres.linkUnlinked() }
             withContext(Dispatchers.Main) { player.refreshSong(updated) }
+            runCatching { organizer.get().organizeOne(updated) }
             ApplyResult(updated, write, coverOk)
         }
+
+    /** Saves tags the user typed in the editor; cover may come from a gallery picture. */
+    suspend fun applyManual(song: SongEntity, after: SongTags, coverBytes: ByteArray?): ApplyResult = withContext(Dispatchers.IO) {
+        val before = song.tags()
+        val cover = coverBytes?.let(::sanitizeCover)
+        var coverPath = song.externalArtPath
+        if (cover != null) {
+            val dir = File(context.filesDir, "covers").apply { mkdirs() }
+            val target = File(dir, "${song.id}_${System.currentTimeMillis()}.jpg")
+            target.writeBytes(cover.jpeg)
+            song.externalArtPath?.takeIf { it.startsWith(dir.absolutePath) }?.let { runCatching { File(it).delete() } }
+            coverPath = target.absolutePath
+        }
+        recordOverrides(song.id, before, after, "user", null)
+        var write: TagWriter.Result? = null
+        var updated = song.copy(
+            title = after.title.ifBlank { song.title }, artist = after.artist, album = after.album, albumArtist = after.albumArtist,
+            year = after.year, genre = after.genre, composer = after.composer, trackNumber = after.trackNumber,
+            discNumber = after.discNumber, comment = after.comment, externalArtPath = coverPath,
+        )
+        if (song.cueIndex == 0 && prefs.writeTagsToFile.first() && (after != before || cover != null)) {
+            write = tagWriter.writeTags(song.path, after, cover?.jpeg, cover?.width ?: 0, cover?.height ?: 0)
+            if (write == TagWriter.Result.WRITTEN) {
+                val f = File(song.path)
+                updated = updated.copy(dateModified = f.lastModified() / 1000 * 1000, fileSize = f.length(), hasEmbeddedArt = song.hasEmbeddedArt || cover != null)
+                runCatching { MediaScannerConnection.scanFile(context, arrayOf(song.path), null, null) }
+            }
+        }
+        updated = updated.copy(
+            needsMetadata = updated.title.isBlank() || updated.artist.isBlank() || updated.album.isBlank() ||
+                (!updated.hasEmbeddedArt && updated.externalArtPath == null),
+        ).withLibraryIds()
+        library.updateSong(updated)
+        if (after.genre != before.genre) runCatching { genres.linkUnlinked() }
+        withContext(Dispatchers.Main) { player.refreshSong(updated) }
+        runCatching { organizer.get().organizeOne(updated) }
+        ApplyResult(updated, write, coverBytes == null || cover != null)
+    }
+
+    /** Reads a picture the user picked (content URI) into bytes, size-capped. */
+    fun readPickedImage(uri: android.net.Uri): ByteArray? = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val out = ByteArrayOutputStream()
+            val buf = ByteArray(64 * 1024)
+            var total = 0L
+            while (true) {
+                val n = input.read(buf); if (n < 0) break
+                total += n; if (total > 15L * 1024 * 1024) return null
+                out.write(buf, 0, n)
+            }
+            out.toByteArray()
+        }
+    }.getOrNull()
 
     // ---- Automatic completion of missing information ------------------------------------------
 
@@ -203,7 +258,7 @@ class MetadataService @Inject constructor(
 
     // ---- helpers ------------------------------------------------------------------------------
 
-    private suspend fun recordOverrides(songId: Long, before: SongTags, after: SongTags, source: String, score: Float) {
+    private suspend fun recordOverrides(songId: Long, before: SongTags, after: SongTags, source: String, score: Float?) {
         val dao = db.metadataOverrideDao()
         suspend fun rec(field: String, old: String?, new: String?) {
             if (old == new) return
@@ -222,6 +277,10 @@ class MetadataService @Inject constructor(
         rec("albumArtist", before.albumArtist, after.albumArtist)
         rec("year", before.year?.toString(), after.year?.toString())
         rec("genre", before.genre, after.genre)
+        rec("composer", before.composer, after.composer)
+        rec("trackNumber", before.trackNumber?.toString(), after.trackNumber?.toString())
+        rec("discNumber", before.discNumber?.toString(), after.discNumber?.toString())
+        rec("comment", before.comment, after.comment)
     }
 
     private class CleanCover(val jpeg: ByteArray, val width: Int, val height: Int)
@@ -254,4 +313,4 @@ class MetadataService @Inject constructor(
     }
 }
 
-fun SongEntity.tags() = SongTags(title, artist, album, albumArtist, year, genre)
+fun SongEntity.tags() = SongTags(title, artist, album, albumArtist, year, genre, composer, trackNumber, discNumber, comment)

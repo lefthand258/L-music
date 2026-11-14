@@ -52,6 +52,7 @@ class PlaylistViewModel @Inject constructor(
     }
     fun addSongs(playlistId: Long, songIds: List<Long>) = viewModelScope.launch { playlists.addSongs(playlistId, songIds) }
     fun removeSong(playlistId: Long, songId: Long) = viewModelScope.launch { playlists.removeSongs(playlistId, listOf(songId)) }
+    fun reorder(id: Long, orderedIds: List<Long>) = viewModelScope.launch { playlists.reorder(id, orderedIds) }
     fun rename(id: Long, name: String) = viewModelScope.launch { playlists.rename(id, name) }
     fun delete(id: Long) = viewModelScope.launch { playlists.delete(id) }
 

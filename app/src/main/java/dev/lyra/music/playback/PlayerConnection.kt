@@ -12,6 +12,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lyra.music.data.db.SongEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,15 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/** Sleep timer: stop after a time, or after N more songs finish. */
+sealed interface SleepTimer {
+    data object Off : SleepTimer
+    /** Pause at [endAtMs] (wall clock); [finishSong] waits for the current song to end first. */
+    data class AtTime(val endAtMs: Long, val finishSong: Boolean) : SleepTimer
+    /** Pause after [remaining] more songs finish. */
+    data class AfterSongs(val remaining: Int) : SleepTimer
+}
 
 /** Immutable UI snapshot of the player. */
 data class PlayerState(
@@ -58,6 +68,11 @@ class PlayerConnection @Inject constructor(
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
+    private val _sleepTimer = MutableStateFlow<SleepTimer>(SleepTimer.Off)
+    val sleepTimer: StateFlow<SleepTimer> = _sleepTimer.asStateFlow()
+    private var sleepJob: Job? = null
+    private var sleepPendingSongEnd = false
+
     init {
         scope.launch { connect() }
     }
@@ -88,6 +103,14 @@ class PlayerConnection @Inject constructor(
     }
 
     private val listener = object : Player.Listener {
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) onSongFinished()
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_ENDED) onSongFinished()
+        }
+
         override fun onEvents(player: Player, events: Player.Events) {
             if (events.containsAny(
                     Player.EVENT_MEDIA_ITEM_TRANSITION,
@@ -130,6 +153,42 @@ class PlayerConnection @Inject constructor(
                 error = if (c.playerError == null) null else it.error,
             )
         }
+    }
+
+    // ---- Sleep timer ------------------------------------------------------------------------
+
+    fun setSleepTimer(timer: SleepTimer) {
+        sleepJob?.cancel(); sleepJob = null
+        sleepPendingSongEnd = false
+        _sleepTimer.value = timer
+        if (timer is SleepTimer.AtTime) {
+            sleepJob = scope.launch {
+                delay((timer.endAtMs - System.currentTimeMillis()).coerceAtLeast(0))
+                if (_sleepTimer.value != timer) return@launch
+                if (timer.finishSong && controller?.isPlaying == true) {
+                    sleepPendingSongEnd = true // wait for the current song to end
+                } else sleepNow()
+            }
+        }
+    }
+
+    fun cancelSleepTimer() = setSleepTimer(SleepTimer.Off)
+
+    private fun onSongFinished() {
+        when (val t = _sleepTimer.value) {
+            is SleepTimer.AfterSongs -> {
+                if (t.remaining <= 1) sleepNow() else _sleepTimer.value = SleepTimer.AfterSongs(t.remaining - 1)
+            }
+            is SleepTimer.AtTime -> if (sleepPendingSongEnd) sleepNow()
+            SleepTimer.Off -> Unit
+        }
+    }
+
+    private fun sleepNow() {
+        controller?.pause()
+        sleepJob?.cancel(); sleepJob = null
+        sleepPendingSongEnd = false
+        _sleepTimer.value = SleepTimer.Off
     }
 
     // ---- Commands -------------------------------------------------------------------------

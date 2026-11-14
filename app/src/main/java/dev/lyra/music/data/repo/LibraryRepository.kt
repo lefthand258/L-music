@@ -9,6 +9,7 @@ import dev.lyra.music.data.db.LyraDatabase
 import dev.lyra.music.data.db.SongEntity
 import dev.lyra.music.data.db.BlacklistedFolderEntity
 import dev.lyra.music.data.db.LibraryFolderEntity
+import dev.lyra.music.data.db.PlayHistoryEntity
 import dev.lyra.music.data.scanner.CueScanner
 import dev.lyra.music.data.scanner.DirectoryScanner
 import dev.lyra.music.data.scanner.MediaStoreScanner
@@ -88,7 +89,12 @@ class LibraryRepository @Inject constructor(
     suspend fun getAllSongs(): List<SongEntity> = songDao.getAll()
 
     suspend fun setFavourite(id: Long, fav: Boolean) = songDao.setFavourite(id, fav)
-    suspend fun recordPlayed(id: Long) = songDao.incrementPlayCount(id, System.currentTimeMillis())
+    suspend fun recordPlayed(id: Long) {
+        val now = System.currentTimeMillis()
+        songDao.incrementPlayCount(id, now)
+        val d = songDao.getById(id)?.durationMs ?: 0L
+        runCatching { db.historyDao().insert(PlayHistoryEntity(songId = id, playedAt = now, listenedMs = d)) }
+    }
 
     /** Drops library rows for files that were deleted from the phone. */
     suspend fun forgetPaths(paths: List<String>) = paths.distinct().chunked(SQL_CHUNK).forEach { songDao.deleteByPaths(it) }

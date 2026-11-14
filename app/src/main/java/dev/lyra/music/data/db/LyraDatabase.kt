@@ -18,8 +18,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LibraryFolderEntity::class,
         GenreEntity::class,
         SongGenreEntity::class,
+        MoveLogEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class LyraDatabase : RoomDatabase() {
@@ -30,9 +31,20 @@ abstract class LyraDatabase : RoomDatabase() {
     abstract fun queueDao(): QueueDao
     abstract fun settingsDao(): SettingsDao
     abstract fun genreDao(): GenreDao
+    abstract fun moveLogDao(): MoveLogDao
 
     companion object {
         const val NAME = "lyra.db"
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `move_log` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `songId` INTEGER NOT NULL, " +
+                        "`fromPath` TEXT NOT NULL, `toPath` TEXT NOT NULL, `movedAt` INTEGER NOT NULL, `undone` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_move_log_movedAt` ON `move_log` (`movedAt`)")
+            }
+        }
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {

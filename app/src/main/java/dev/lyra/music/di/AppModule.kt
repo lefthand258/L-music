@@ -18,7 +18,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LyraDatabase =
         Room.databaseBuilder(context, LyraDatabase::class.java, LyraDatabase.NAME)
-            .addMigrations(LyraDatabase.MIGRATION_1_2)
+            .addMigrations(LyraDatabase.MIGRATION_1_2, LyraDatabase.MIGRATION_2_3)
             .fallbackToDestructiveMigrationOnDowngrade()
             .build()
 }

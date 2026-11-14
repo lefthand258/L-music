@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
@@ -47,6 +48,9 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import dev.lyra.music.R
 import dev.lyra.music.data.db.SongEntity
+import dev.lyra.music.ui.common.rememberReorderState
+import dev.lyra.music.ui.common.reorderItem
+import dev.lyra.music.ui.common.reorderable
 import dev.lyra.music.util.CoverArt
 import dev.lyra.music.util.formatDuration
 
@@ -62,6 +66,8 @@ class SongActions(
     /** Look up song information and cover art online. */
     val onIdentify: (SongEntity) -> Unit,
     val onSetGenres: (SongEntity) -> Unit,
+    /** Edit title / artist / album… by hand. */
+    val onEdit: (SongEntity) -> Unit,
     /** "Remove from Lyra": hides the song, the file stays on the phone. */
     val onHide: (SongEntity) -> Unit,
     /** "Delete file from phone": asks for confirmation, then deletes the file itself. */
@@ -100,6 +106,7 @@ fun SongRow(
     actions: SongActions,
     modifier: Modifier = Modifier,
     onRemoveFromPlaylist: (() -> Unit)? = null,
+    showDragHandle: Boolean = false,
 ) {
     var menu by remember { mutableStateOf(false) }
     Row(
@@ -109,6 +116,10 @@ fun SongRow(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (showDragHandle) {
+            Icon(Icons.Default.DragHandle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+        }
         CoverImage(song, Modifier.size(48.dp))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -147,6 +158,7 @@ fun SongRow(
                 DropdownMenuItem(
                     text = { Text(stringResource(if (song.isFavourite) R.string.action_unfavourite else R.string.action_favourite)) },
                     onClick = { menu = false; actions.onToggleFavourite(song) })
+                DropdownMenuItem(text = { Text(stringResource(R.string.action_song_info)) }, onClick = { menu = false; actions.onEdit(song) })
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_identify)) }, onClick = { menu = false; actions.onIdentify(song) })
                 DropdownMenuItem(text = { Text(stringResource(R.string.genre_set_title)) }, onClick = { menu = false; actions.onSetGenres(song) })
                 if (onRemoveFromPlaylist != null) {
@@ -172,7 +184,23 @@ fun SongList(
     listState: LazyListState = rememberLazyListState(),
     header: (@Composable () -> Unit)? = null,
     onRemoveFromPlaylist: ((SongEntity) -> Unit)? = null,
+    /** When given, rows can be long-pressed and dragged; called with the full new order on drop. */
+    onReorder: ((List<Long>) -> Unit)? = null,
 ) {
+    // Local copy so the list follows the finger before the database catches up.
+    var order by remember(songs) { mutableStateOf(songs) }
+    val reorder = rememberReorderState(
+        listState = listState,
+        keyOf = { i -> order.getOrNull(i - HEADER_ITEMS)?.id },
+        onMove = { from, to ->
+            val f = from - HEADER_ITEMS; val t = to - HEADER_ITEMS
+            if (f in order.indices && t in order.indices) {
+                order = order.toMutableList().apply { add(t, removeAt(f)) }
+            }
+        },
+        onDrop = { onReorder?.invoke(order.map { it.id }) },
+    )
+    val shown = if (onReorder != null) order else songs
     if (songs.isEmpty() && header == null) {
         Box(modifier.fillMaxSize().padding(contentPadding), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.library_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -180,8 +208,9 @@ fun SongList(
         return
     }
     LazyColumn(modifier = modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
-        if (header != null) item("header") { header() }
-        if (songs.isNotEmpty()) item("actions") {
+        // Two fixed items precede the songs; the reorder helper needs that offset.
+        item("header") { header?.invoke() }
+        item("actions") { if (songs.isNotEmpty())
             Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                 FilledTonalButton(onClick = { actions.onPlayAll(songs) }) {
                     Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp))
@@ -201,15 +230,24 @@ fun SongList(
                 )
             }
         }
-        itemsIndexed(songs, key = { _, it -> it.id }) { index, song ->
+        itemsIndexed(shown, key = { _, it -> it.id }) { index, song ->
+            val rowModifier = if (onReorder != null) {
+                Modifier.reorderItem(reorder, song.id)
+                    .background(if (reorder.draggingKey == song.id) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface)
+                    .reorderable(reorder, index + HEADER_ITEMS)
+            } else Modifier
             SongRow(
                 song = song,
                 isCurrent = song.id == currentSongId,
-                onClick = { actions.onPlay(songs, index) },
+                onClick = { actions.onPlay(shown, index) },
                 actions = actions,
+                modifier = rowModifier,
                 onRemoveFromPlaylist = onRemoveFromPlaylist?.let { cb -> { cb(song) } },
+                showDragHandle = onReorder != null,
             )
         }
         item("bottom") { Spacer(Modifier.height(8.dp)) }
     }
 }
+
+private const val HEADER_ITEMS = 2

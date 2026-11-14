@@ -209,3 +209,14 @@ data class GenreEntity(
     indices = [Index("genreId")]
 )
 data class SongGenreEntity(val songId: Long, val genreId: Long)
+
+/** One file move made by the organiser, kept so it can be undone. */
+@Entity(tableName = "move_log", indices = [Index("movedAt")])
+data class MoveLogEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val songId: Long,
+    val fromPath: String,
+    val toPath: String,
+    val movedAt: Long = System.currentTimeMillis(),
+    val undone: Boolean = false,
+)

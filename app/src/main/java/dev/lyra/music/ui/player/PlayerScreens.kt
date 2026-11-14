@@ -21,7 +21,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.LaunchedEffect
+import dev.lyra.music.playback.SleepTimer
+import dev.lyra.music.ui.common.rememberReorderState
+import dev.lyra.music.ui.common.reorderItem
+import dev.lyra.music.ui.common.reorderable
+import kotlinx.coroutines.delay
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Forward10
@@ -119,12 +133,13 @@ fun MiniPlayer(vm: PlayerViewModel, onExpand: () -> Unit, modifier: Modifier = M
 }
 
 @Composable
-fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (SongEntity) -> Unit = {}, onSetGenres: (SongEntity) -> Unit = {}) {
+fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (SongEntity) -> Unit = {}, onSetGenres: (SongEntity) -> Unit = {}, onEdit: (SongEntity) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val song by vm.currentSong.collectAsStateWithLifecycle()
     var showQueue by remember { mutableStateOf(false) }
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var showLyricsSearch by remember { mutableStateOf(false) }
+    var showSleep by remember { mutableStateOf(false) }
     val loadedLyrics by vm.lyrics.collectAsStateWithLifecycle()
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -138,6 +153,16 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (S
                     stringResource(R.string.now_playing), modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge
                 )
+                val sleep by vm.sleepTimer.collectAsStateWithLifecycle()
+                IconButton(onClick = { showSleep = true }) {
+                    Icon(
+                        Icons.Default.Bedtime, stringResource(R.string.sleep_timer),
+                        tint = if (sleep != SleepTimer.Off) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                IconButton(onClick = { song?.let(onEdit) }) {
+                    Icon(Icons.Default.Edit, stringResource(R.string.action_song_info))
+                }
                 IconButton(onClick = { song?.let(onIdentify) }) {
                     Icon(Icons.Default.AutoFixHigh, stringResource(R.string.action_identify))
                 }
@@ -245,6 +270,10 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (S
         }
     }
 
+    if (showSleep) {
+        SleepTimerDialog(vm = vm, onDismiss = { showSleep = false })
+    }
+
     if (showLyricsSearch) {
         LyricsSearchSheet(vm = vm, onDismiss = { showLyricsSearch = false })
     }
@@ -279,6 +308,20 @@ private fun SeekBar(state: PlayerState, onSeek: (Long) -> Unit) {
 
 @Composable
 private fun QueueSheet(vm: PlayerViewModel, state: PlayerState, onDismiss: () -> Unit) {
+    val listState = rememberLazyListState()
+    // Stable keys even when the same song appears twice: mediaId plus occurrence number.
+    val keys = remember(state.queue) {
+        val seen = HashMap<String, Int>()
+        state.queue.map { it -> val n = seen.getOrDefault(it.mediaId, 0); seen[it.mediaId] = n + 1; "${it.mediaId}#$n" }
+    }
+    // Drag-and-drop: moves are sent to the player immediately and the queue re-emits.
+    val reorder = rememberReorderState(
+        listState = listState,
+        keyOf = { i -> keys.getOrNull(i) },
+        onMove = { from, to -> vm.moveQueueItem(from, to) },
+    )
+    LaunchedEffect(Unit) { if (state.currentIndex > 2) listState.scrollToItem(state.currentIndex - 1) }
+
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -287,17 +330,32 @@ private fun QueueSheet(vm: PlayerViewModel, state: PlayerState, onDismiss: () ->
             )
             TextButton(onClick = { vm.clearQueue(); onDismiss() }) { Text(stringResource(R.string.clear)) }
         }
-        LazyColumn(Modifier.fillMaxWidth().height(480.dp)) {
-            itemsIndexed(state.queue, key = { i, it -> "$i:${it.mediaId}" }) { index, item ->
+        Text(
+            stringResource(R.string.drag_hint), style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        LazyColumn(Modifier.fillMaxWidth().height(480.dp), state = listState) {
+            itemsIndexed(state.queue, key = { i, _ -> keys[i] }) { index, item ->
                 val isCurrent = index == state.currentIndex
+                val key = keys[index]
                 Row(
                     Modifier.fillMaxWidth()
-                        .background(if (isCurrent) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else Color.Transparent)
+                        .reorderItem(reorder, key)
+                        .background(
+                            when {
+                                reorder.draggingKey == key -> MaterialTheme.colorScheme.surfaceVariant
+                                isCurrent -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                                else -> MaterialTheme.colorScheme.surface
+                            }
+                        )
+                        .reorderable(reorder, index)
                         .clickable { vm.skipToQueueItem(index) }
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("${index + 1}", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(32.dp))
+                    Icon(Icons.Default.DragHandle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("${index + 1}", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(28.dp))
                     Column(Modifier.weight(1f)) {
                         Text(item.mediaMetadata.title?.toString() ?: "—", maxLines = 1, overflow = TextOverflow.Ellipsis,
                             color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
@@ -309,6 +367,66 @@ private fun QueueSheet(vm: PlayerViewModel, state: PlayerState, onDismiss: () ->
             }
         }
     }
+}
+
+@Composable
+private fun SleepTimerDialog(vm: PlayerViewModel, onDismiss: () -> Unit) {
+    val timer by vm.sleepTimer.collectAsStateWithLifecycle()
+    var finishSong by remember { mutableStateOf(true) }
+    var custom by remember { mutableStateOf("") }
+    var songs by remember { mutableStateOf("") }
+    // Tick once a second so the remaining time stays accurate.
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(timer) { while (timer is SleepTimer.AtTime) { delay(1_000); now = System.currentTimeMillis() } }
+
+    fun start(minutes: Int) {
+        vm.setSleepTimer(SleepTimer.AtTime(System.currentTimeMillis() + minutes * 60_000L, finishSong)); onDismiss()
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.sleep_timer)) },
+        text = {
+            Column(Modifier.fillMaxWidth()) {
+                when (val t = timer) {
+                    is SleepTimer.AtTime -> Text(
+                        stringResource(R.string.sleep_remaining, formatDuration((t.endAtMs - now).coerceAtLeast(0))),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    is SleepTimer.AfterSongs -> Text(stringResource(R.string.sleep_remaining_songs, t.remaining), color = MaterialTheme.colorScheme.primary)
+                    SleepTimer.Off -> Unit
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(15, 30, 45, 60).forEach { m -> FilledTonalButton(onClick = { start(m) }) { Text("${m}m") } }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = custom, onValueChange = { custom = it.filter(Char::isDigit).take(3) }, singleLine = true,
+                        label = { Text(stringResource(R.string.sleep_minutes)) }, modifier = Modifier.weight(1f)
+                    )
+                    TextButton(enabled = (custom.toIntOrNull() ?: 0) > 0, onClick = { start(custom.toInt()) }) { Text(stringResource(R.string.ok)) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = songs, onValueChange = { songs = it.filter(Char::isDigit).take(3) }, singleLine = true,
+                        label = { Text(stringResource(R.string.sleep_after_songs)) }, modifier = Modifier.weight(1f)
+                    )
+                    TextButton(enabled = (songs.toIntOrNull() ?: 0) > 0, onClick = {
+                        vm.setSleepTimer(SleepTimer.AfterSongs(songs.toInt())); onDismiss()
+                    }) { Text(stringResource(R.string.ok)) }
+                }
+                Row(Modifier.fillMaxWidth().clickable { finishSong = !finishSong }, verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = finishSong, onCheckedChange = { finishSong = it })
+                    Text(stringResource(R.string.sleep_finish_song), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            if (timer != SleepTimer.Off) TextButton(onClick = { vm.setSleepTimer(SleepTimer.Off); onDismiss() }) { Text(stringResource(R.string.sleep_off)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }
 
 @Suppress("unused")

@@ -34,6 +34,10 @@ data class SongTags(
     val albumArtist: String,
     val year: Int?,
     val genre: String?,
+    val composer: String? = null,
+    val trackNumber: Int? = null,
+    val discNumber: Int? = null,
+    val comment: String? = null,
 )
 
 object MetadataMerge {

@@ -65,6 +65,10 @@ class TagWriter @Inject constructor() {
                 set(FieldKey.ALBUM_ARTIST, tags.albumArtist)
                 set(FieldKey.YEAR, tags.year?.toString())
                 set(FieldKey.GENRE, tags.genre)
+                set(FieldKey.COMPOSER, tags.composer)
+                set(FieldKey.TRACK, tags.trackNumber?.toString())
+                set(FieldKey.DISC_NO, tags.discNumber?.toString())
+                set(FieldKey.COMMENT, tags.comment)
                 if (coverJpeg != null) {
                     val art = ArtworkFactory.getNew()
                     art.binaryData = coverJpeg

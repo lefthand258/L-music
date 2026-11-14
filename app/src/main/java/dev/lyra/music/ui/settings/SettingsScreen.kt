@@ -46,6 +46,10 @@ import dev.lyra.music.R
 import dev.lyra.music.data.prefs.UserPrefs
 import dev.lyra.music.data.repo.LibraryRepository
 import dev.lyra.music.data.repo.ScanState
+import android.net.Uri
+import androidx.compose.runtime.rememberCoroutineScope
+import dev.lyra.music.backup.BackupService
+import dev.lyra.music.backup.RestoreReport
 import dev.lyra.music.lyrics.FloatingLyricsController
 import dev.lyra.music.online.BatchState
 import dev.lyra.music.online.MetadataService
@@ -65,7 +69,10 @@ class SettingsViewModel @Inject constructor(
     private val library: LibraryRepository,
     private val metadata: MetadataService,
     val floatingLyrics: FloatingLyricsController,
+    private val backup: BackupService,
 ) : ViewModel() {
+    suspend fun exportBackup(uri: Uri): Boolean = backup.export(uri)
+    suspend fun restoreBackup(uri: Uri): RestoreReport? = backup.restore(uri)
     val floatingOn = prefs.floatingLyrics.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     fun setFloating(v: Boolean) = viewModelScope.launch { prefs.setFloatingLyrics(v) }
     val batch = metadata.batch
@@ -100,7 +107,7 @@ class SettingsViewModel @Inject constructor(
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, vm: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, onOpenOrganize: () -> Unit = {}, vm: SettingsViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
     val dynamic by vm.dynamicColor.collectAsStateWithLifecycle()
@@ -112,6 +119,20 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, vm: Setting
     val battery = rememberPermissionState { Permissions.isIgnoringBatteryOptimizations(context) }
     val floatingOn by vm.floatingOn.collectAsStateWithLifecycle()
     val overlayGranted = rememberPermissionState { vm.floatingLyrics.hasPermission() }
+    val scope = rememberCoroutineScope()
+    val msgExported = stringResource(R.string.backup_exported)
+    val msgFailed = stringResource(R.string.playlist_export_failed)
+    val msgRestoreFailed = stringResource(R.string.backup_restore_failed)
+    val backupSaver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) scope.launch { Toast.makeText(context, if (vm.exportBackup(uri)) msgExported else msgFailed, Toast.LENGTH_SHORT).show() }
+    }
+    val backupPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            val r = vm.restoreBackup(uri)
+            val msg = if (r == null) msgRestoreFailed else context.getString(R.string.backup_restored, r.playlists, r.playlistTracksMatched, r.playlistTracksMissing, r.favourites, r.genres)
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
+    }
     val batch by vm.batch.collectAsStateWithLifecycle()
     val needing by vm.needingMetadata.collectAsStateWithLifecycle()
     val excluded by vm.blacklist.collectAsStateWithLifecycle()
@@ -229,10 +250,23 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, vm: Setting
                     else TextButton(enabled = needing > 0, onClick = { vm.startBatch() }) { Text(stringResource(R.string.batch_start)) }
                 }
             )
-            ToggleRow(
-                title = "Auto-organise files / 自动整理文件",
-                subtitle = "{AlbumArtist}/{Album}/{Track} - {Title} (preview before moving)",
-                checked = autoOrganise, onToggle = { vm.setAutoOrganise(!autoOrganise) },
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.organize_title)) },
+                supportingContent = { Text(stringResource(R.string.organize_settings_desc)) },
+                modifier = Modifier.clickable(onClick = onOpenOrganize)
+            )
+            HorizontalDivider()
+
+            Section(stringResource(R.string.backup_title))
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.backup_export)) },
+                supportingContent = { Text(stringResource(R.string.backup_export_desc)) },
+                modifier = Modifier.clickable { backupSaver.launch("lyra-backup-" + java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date()) + ".lyra.zip") }
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.backup_import)) },
+                supportingContent = { Text(stringResource(R.string.backup_import_desc)) },
+                modifier = Modifier.clickable { backupPicker.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }
             )
             HorizontalDivider()
 

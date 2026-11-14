@@ -49,6 +49,7 @@ import dev.lyra.music.ui.genre.GenrePickerDialog
 import dev.lyra.music.ui.genre.GenreViewModel
 import dev.lyra.music.ui.genre.GenresTab
 import dev.lyra.music.ui.metadata.MetadataSheet
+import dev.lyra.music.ui.metadata.SongEditSheet
 import dev.lyra.music.ui.permissions.OnboardingScreen
 import dev.lyra.music.ui.permissions.Permissions
 import dev.lyra.music.ui.player.MiniPlayer
@@ -62,6 +63,7 @@ import dev.lyra.music.ui.playlist.PlaylistMenu
 import dev.lyra.music.ui.playlist.PlaylistViewModel
 import dev.lyra.music.ui.playlist.PlaylistsTab
 import dev.lyra.music.ui.playlist.SmartList
+import dev.lyra.music.ui.settings.OrganizeScreen
 import dev.lyra.music.ui.settings.SettingsScreen
 import dev.lyra.music.ui.settings.SettingsViewModel
 import kotlinx.coroutines.launch
@@ -76,6 +78,7 @@ private object Routes {
     const val SETTINGS = "settings"
     const val GENRE = "genre/{id}"
     const val GENRES_MANAGE = "genres/manage"
+    const val ORGANIZE = "organize"
     fun genre(id: Long) = "genre/$id"
     fun album(id: Long) = "album/$id"
     fun artist(id: Long) = "artist/$id"
@@ -130,6 +133,7 @@ private fun MainScaffold(openPlayerSignal: Int) {
     var deleteFileSong by remember { mutableStateOf<SongEntity?>(null) }
     var identifySong by remember { mutableStateOf<SongEntity?>(null) }
     var genreSong by remember { mutableStateOf<SongEntity?>(null) }
+    var editSong by remember { mutableStateOf<SongEntity?>(null) }
     val genreVm: GenreViewModel = hiltViewModel()
     var deletePlaylist by remember { mutableStateOf<Pair<Long, String>?>(null) }
     var pendingSystemDeletePaths by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -195,6 +199,7 @@ private fun MainScaffold(openPlayerSignal: Int) {
             onAddToPlaylist = { addToPlaylistSong = it },
             onIdentify = { identifySong = it },
             onSetGenres = { genreSong = it },
+            onEdit = { editSong = it },
             onHide = libraryVm::hide,
             onDeleteFile = { deleteFileSong = it },
         )
@@ -277,6 +282,7 @@ private fun MainScaffold(openPlayerSignal: Int) {
                     songs = songs, currentSongId = playerState.songId, bottomPadding = bottomPadding,
                     actions = actions, onBack = { nav.popBackStack() },
                     onRemoveFromPlaylist = { playlistVm.removeSong(id, it.id) },
+                    onReorder = { playlistVm.reorder(id, it) },
                     topActions = {
                         PlaylistMenu(
                             onRename = { nameRequest = NameRequest.Rename(id, name) },
@@ -321,7 +327,10 @@ private fun MainScaffold(openPlayerSignal: Int) {
                 GenreManageScreen(bottomPadding = bottomPadding, onBack = { nav.popBackStack() }, vm = genreVm)
             }
             composable(Routes.SETTINGS) {
-                SettingsScreen(onBack = { nav.popBackStack() }, bottomPadding = bottomPadding)
+                SettingsScreen(onBack = { nav.popBackStack() }, bottomPadding = bottomPadding, onOpenOrganize = { nav.navigate(Routes.ORGANIZE) })
+            }
+            composable(Routes.ORGANIZE) {
+                OrganizeScreen(bottomPadding = bottomPadding, onBack = { nav.popBackStack() })
             }
         }
 
@@ -339,11 +348,15 @@ private fun MainScaffold(openPlayerSignal: Int) {
             enter = slideInVertically(tween(260)) { it } + fadeIn(tween(200)),
             exit = slideOutVertically(tween(220)) { it } + fadeOut(tween(160)),
         ) {
-            NowPlayingScreen(playerVm, onCollapse = { playerExpanded = false }, onIdentify = { identifySong = it }, onSetGenres = { genreSong = it })
+            NowPlayingScreen(playerVm, onCollapse = { playerExpanded = false }, onIdentify = { identifySong = it }, onSetGenres = { genreSong = it }, onEdit = { editSong = it })
         }
     }
 
     // ---- Dialogs -------------------------------------------------------------------------------
+
+    editSong?.let { song ->
+        SongEditSheet(song = song, onDismiss = { editSong = null })
+    }
 
     genreSong?.let { song ->
         GenrePickerDialog(song = song, onDismiss = { genreSong = null }, onManage = { genreSong = null; nav.navigate(Routes.GENRES_MANAGE) }, vm = genreVm)

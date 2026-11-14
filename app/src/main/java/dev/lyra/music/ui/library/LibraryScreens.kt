@@ -281,6 +281,7 @@ fun SongCollectionScreen(
     onRemoveFromPlaylist: ((SongEntity) -> Unit)? = null,
     /** Extra buttons in the app bar (playlist rename / export / delete…). */
     topActions: (@Composable () -> Unit)? = null,
+    onReorder: ((List<Long>) -> Unit)? = null,
 ) {
     Scaffold(
         topBar = {
@@ -301,6 +302,7 @@ fun SongCollectionScreen(
             contentPadding = PaddingValues(top = inner.calculateTopPadding(), bottom = bottomPadding.calculateBottomPadding()),
             actions = actions,
             onRemoveFromPlaylist = onRemoveFromPlaylist,
+            onReorder = onReorder,
             header = if (songs.isNotEmpty()) ({
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     CoverImage(songs.first(), Modifier.size(120.dp), corner = 16)

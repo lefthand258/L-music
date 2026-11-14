@@ -79,6 +79,9 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE path = :path AND cueIndex = :cueIndex LIMIT 1")
     suspend fun getByKey(path: String, cueIndex: Int): SongEntity?
 
+    @Query("UPDATE songs SET path = :path, uri = :uri, fileName = :fileName, folderPath = :folder WHERE id = :id")
+    suspend fun updateLocation(id: Long, path: String, uri: String, fileName: String, folder: String)
+
     @Query("SELECT * FROM songs WHERE path = :path ORDER BY cueIndex ASC")
     suspend fun getByPath(path: String): List<SongEntity>
 
@@ -335,6 +338,9 @@ interface HistoryDao {
     @Query("SELECT * FROM play_history ORDER BY playedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<PlayHistoryEntity>>
 
+    @Query("SELECT * FROM play_history ORDER BY playedAt DESC")
+    suspend fun all(): List<PlayHistoryEntity>
+
     @Query("DELETE FROM play_history")
     suspend fun clear()
 }
@@ -349,6 +355,9 @@ interface MetadataOverrideDao {
 
     @Query("SELECT * FROM metadata_overrides ORDER BY appliedAt DESC")
     fun observeAll(): Flow<List<MetadataOverrideEntity>>
+
+    @Query("SELECT * FROM metadata_overrides ORDER BY appliedAt DESC")
+    suspend fun all(): List<MetadataOverrideEntity>
 
     @Upsert
     suspend fun upsert(override: MetadataOverrideEntity)
@@ -472,4 +481,22 @@ interface GenreDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun link(links: List<SongGenreEntity>)
+}
+
+@Dao
+interface MoveLogDao {
+    @Insert
+    suspend fun insert(e: MoveLogEntity): Long
+
+    @Query("SELECT * FROM move_log WHERE undone = 0 ORDER BY movedAt DESC LIMIT :limit")
+    fun observeRecent(limit: Int): Flow<List<MoveLogEntity>>
+
+    @Query("SELECT * FROM move_log WHERE undone = 0 AND movedAt >= :since ORDER BY movedAt DESC")
+    suspend fun since(since: Long): List<MoveLogEntity>
+
+    @Query("UPDATE move_log SET undone = 1 WHERE id = :id")
+    suspend fun markUndone(id: Long)
+
+    @Query("DELETE FROM move_log WHERE movedAt < :before")
+    suspend fun purgeOlderThan(before: Long)
 }

@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import dev.lyra.music.playback.PlayerConnection
 import dev.lyra.music.playback.PlayerState
+import dev.lyra.music.playback.SleepTimer
 import dev.lyra.music.playback.QueuePersistence
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -164,6 +165,9 @@ class PlayerViewModel @Inject constructor(
             }
         }
     }
+
+    val sleepTimer: StateFlow<SleepTimer> = player.sleepTimer
+    fun setSleepTimer(t: SleepTimer) = player.setSleepTimer(t)
 
     fun togglePlayPause() = player.togglePlayPause()
     fun next() = player.next()
