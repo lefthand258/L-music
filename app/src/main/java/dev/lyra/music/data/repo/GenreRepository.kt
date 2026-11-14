@@ -6,6 +6,7 @@ import dev.lyra.music.data.db.LyraDatabase
 import dev.lyra.music.data.db.SongEntity
 import dev.lyra.music.data.db.SongGenreEntity
 import dev.lyra.music.data.prefs.UserPrefs
+import dev.lyra.music.data.scanner.GenreText
 import dev.lyra.music.data.scanner.Genres
 import dev.lyra.music.data.scanner.TagWriter
 import kotlinx.coroutines.flow.Flow
