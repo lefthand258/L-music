@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.lyra.music.R
 import dev.lyra.music.lyrics.Lyrics
+import dev.lyra.music.lyrics.LyricsSource
 import java.util.Locale
 
 /**
@@ -51,6 +52,7 @@ fun LyricsView(
     onSearchOnline: () -> Unit,
     modifier: Modifier = Modifier,
     loading: Boolean = false,
+    source: LyricsSource? = null,
 ) {
     val noRipple = remember { MutableInteractionSource() }
     if (lyrics == null || lyrics.isEmpty) {
@@ -154,6 +156,19 @@ fun LyricsView(
             }
         }
 
+        source?.let { src ->
+            val label = when (src) {
+                LyricsSource.EMBEDDED -> R.string.lyrics_src_embedded
+                LyricsSource.SIDECAR -> R.string.lyrics_src_sidecar
+                LyricsSource.CACHE -> R.string.lyrics_src_app
+                LyricsSource.NONE -> null
+            }
+            if (label != null) Text(
+                stringResource(label), style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+            )
+        }
         if (!lyrics.synced) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 TextButton(onClick = onSearchOnline) { Text(stringResource(R.string.lyrics_replace)) }

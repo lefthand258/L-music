@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.TagOptionSingleton
+import org.jaudiotagger.tag.reference.ID3V2Version
 import org.jaudiotagger.tag.images.ArtworkFactory
 import java.io.File
 import javax.inject.Inject
@@ -24,6 +25,8 @@ class TagWriter @Inject constructor() {
     init {
         // Use jaudiotagger's Android artwork implementation (no java.awt / ImageIO).
         TagOptionSingleton.getInstance().isAndroid = true
+        // ID3v2.3 is what Windows, car stereos and older players read reliably.
+        TagOptionSingleton.getInstance().setID3V2Version(ID3V2Version.ID3_V23)
     }
 
     enum class Result { WRITTEN, SKIPPED_NO_PERMISSION, SKIPPED_UNSUPPORTED, FAILED }

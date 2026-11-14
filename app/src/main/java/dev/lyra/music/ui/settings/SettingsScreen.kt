@@ -51,6 +51,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import dev.lyra.music.backup.BackupService
 import dev.lyra.music.backup.RestoreReport
 import dev.lyra.music.lyrics.FloatingLyricsController
+import dev.lyra.music.lyrics.LyricsSaver
+import dev.lyra.music.lyrics.WriteAllState
 import dev.lyra.music.online.BatchState
 import dev.lyra.music.online.MetadataService
 import dev.lyra.music.ui.permissions.Permissions
@@ -70,7 +72,12 @@ class SettingsViewModel @Inject constructor(
     private val metadata: MetadataService,
     val floatingLyrics: FloatingLyricsController,
     private val backup: BackupService,
+    private val lyricsSaver: LyricsSaver,
 ) : ViewModel() {
+    val lyricsSidecar = prefs.lyricsSidecar.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+    fun setLyricsSidecar(v: Boolean) = viewModelScope.launch { prefs.setLyricsSidecar(v) }
+    val writeAll = lyricsSaver.writeAll
+    fun startWriteAll() = lyricsSaver.startWriteAll()
     suspend fun exportBackup(uri: Uri): Boolean = backup.export(uri)
     suspend fun restoreBackup(uri: Uri): RestoreReport? = backup.restore(uri)
     val floatingOn = prefs.floatingLyrics.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -118,6 +125,8 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, onOpenOrgan
     val allFiles = rememberPermissionState { Permissions.hasAllFiles() }
     val battery = rememberPermissionState { Permissions.isIgnoringBatteryOptimizations(context) }
     val floatingOn by vm.floatingOn.collectAsStateWithLifecycle()
+    val sidecarOn by vm.lyricsSidecar.collectAsStateWithLifecycle()
+    val writeAll by vm.writeAll.collectAsStateWithLifecycle()
     val overlayGranted = rememberPermissionState { vm.floatingLyrics.hasPermission() }
     val scope = rememberCoroutineScope()
     val msgExported = stringResource(R.string.backup_exported)
@@ -129,7 +138,7 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, onOpenOrgan
     val backupPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             val r = vm.restoreBackup(uri)
-            val msg = if (r == null) msgRestoreFailed else context.getString(R.string.backup_restored, r.playlists, r.playlistTracksMatched, r.playlistTracksMissing, r.favourites, r.genres)
+            val msg = if (r == null) msgRestoreFailed else context.getString(R.string.backup_restored, r.playlists, r.playlistTracksMatched, r.playlistTracksMissing, r.favourites, r.genres, r.lyrics)
             Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
         }
     }
@@ -271,6 +280,26 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, onOpenOrgan
             HorizontalDivider()
 
             Section(stringResource(R.string.lyrics))
+            ToggleRow(
+                title = stringResource(R.string.lyrics_sidecar),
+                subtitle = stringResource(R.string.lyrics_sidecar_desc),
+                checked = sidecarOn, onToggle = { vm.setLyricsSidecar(!sidecarOn) },
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.lyrics_write_all)) },
+                supportingContent = {
+                    Text(
+                        when (val w = writeAll) {
+                            is WriteAllState.Running -> "${w.done} / ${w.total}"
+                            is WriteAllState.Finished -> stringResource(R.string.lyrics_write_all_done, w.embedded, w.sidecars, w.notWritten)
+                            WriteAllState.Idle -> stringResource(R.string.lyrics_write_all_desc)
+                        }
+                    )
+                },
+                trailingContent = {
+                    TextButton(enabled = writeAll !is WriteAllState.Running, onClick = { vm.startWriteAll() }) { Text(stringResource(R.string.batch_start)) }
+                }
+            )
             ToggleRow(
                 title = stringResource(R.string.floating_lyrics),
                 subtitle = if (overlayGranted) stringResource(R.string.floating_lyrics_desc) else stringResource(R.string.floating_lyrics_permission),

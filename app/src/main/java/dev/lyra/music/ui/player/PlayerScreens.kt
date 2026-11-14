@@ -31,6 +31,9 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.LaunchedEffect
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import dev.lyra.music.data.scanner.TagWriter
 import dev.lyra.music.playback.SleepTimer
 import dev.lyra.music.ui.common.rememberReorderState
 import dev.lyra.music.ui.common.reorderItem
@@ -141,6 +144,30 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (S
     var showLyricsSearch by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
     val loadedLyrics by vm.lyrics.collectAsStateWithLifecycle()
+    val lyricsSaved by vm.lyricsSaved.collectAsStateWithLifecycle()
+    val ctx = LocalContext.current
+    val msgSavedFile = stringResource(R.string.lyrics_saved_file)
+    val msgSavedLrc = stringResource(R.string.lyrics_saved_lrc)
+    val msgSavedBoth = stringResource(R.string.lyrics_saved_both)
+    val msgOff = stringResource(R.string.lyrics_saved_only_app_off)
+    val msgNoPerm = stringResource(R.string.lyrics_saved_only_app_perm)
+    val msgFormat = stringResource(R.string.lyrics_saved_only_app_format)
+    val msgFailed = stringResource(R.string.lyrics_saved_only_app_failed)
+    LaunchedEffect(lyricsSaved) {
+        val o = lyricsSaved ?: return@LaunchedEffect
+        val embedded = o.embedded == TagWriter.Result.WRITTEN
+        val msg = when {
+            embedded && o.sidecar -> msgSavedBoth
+            embedded -> msgSavedFile
+            o.sidecar -> msgSavedLrc
+            o.embedded == null && !o.sidecarSkippedNoPermission -> msgOff
+            o.embedded == TagWriter.Result.SKIPPED_NO_PERMISSION || o.sidecarSkippedNoPermission -> msgNoPerm
+            o.embedded == TagWriter.Result.SKIPPED_UNSUPPORTED -> msgFormat
+            else -> msgFailed
+        }
+        Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+        vm.consumeLyricsSaved()
+    }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -186,6 +213,7 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (S
                         onTapBackground = { showLyrics = false },
                         onSearchOnline = { vm.resetLyricsSearch(); showLyricsSearch = true },
                         loading = loadedLyrics == null && song != null,
+                        source = loadedLyrics?.source,
                     )
                 } else {
                     CoverImage(

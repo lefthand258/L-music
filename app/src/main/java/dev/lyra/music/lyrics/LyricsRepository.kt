@@ -56,6 +56,17 @@ class LyricsRepository @Inject constructor(
 
     private fun cacheFile(song: SongEntity) = File(cacheDir, "${song.id}.lrc")
 
+    /** Ids of songs that have lyrics saved inside Lyra. */
+    fun savedSongIds(): List<Long> =
+        cacheDir.listFiles()?.mapNotNull { it.name.removeSuffix(".lrc").toLongOrNull() }.orEmpty()
+
+    /** Raw saved lyrics text for a song, or null. */
+    fun savedText(song: SongEntity): String? {
+        val f = cacheFile(song)
+        if (!f.isFile || f.length() !in 1..MAX_BYTES) return null
+        return runCatching { f.readText(Charsets.UTF_8) }.getOrNull()
+    }
+
     private fun readCache(song: SongEntity): Lyrics? {
         val f = cacheFile(song)
         if (!f.isFile || f.length() !in 1..MAX_BYTES) return null

@@ -57,7 +57,6 @@ fun LyricsSearchSheet(vm: PlayerViewModel, onDismiss: () -> Unit) {
     var title by remember { mutableStateOf(initial?.title.orEmpty()) }
     var artist by remember { mutableStateOf(initial?.artist.orEmpty()) }
     var source by remember { mutableStateOf<OnlineSource?>(null) }
-    val savedMsg = stringResource(R.string.lyrics_saved)
 
     fun runSearch() {
         if (title.isNotBlank()) vm.searchLyrics(title, artist, source?.let { setOf(it) } ?: OnlineSource.LYRICS.toSet())
@@ -78,7 +77,6 @@ fun LyricsSearchSheet(vm: PlayerViewModel, onDismiss: () -> Unit) {
                     onBack = vm::closeLyricsPreview,
                     onUse = {
                         vm.applyLyricsPreview()
-                        Toast.makeText(context, savedMsg, Toast.LENGTH_SHORT).show()
                         onDismiss()
                     },
                 )

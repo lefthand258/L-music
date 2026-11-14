@@ -179,5 +179,20 @@
     <string name="backup_import_desc">合并到当前曲库，不会删除任何东西</string>
     <string name="backup_exported">备份已保存</string>
     <string name="backup_restore_failed">这不是 Lyra 的备份文件</string>
-    <string name="backup_restored">已恢复：新建歌单 %1$d，匹配歌曲 %2$d，未找到 %3$d，收藏 %4$d，带流派标签的歌曲 %5$d</string>
+    <string name="backup_restored">已恢复：新建歌单 %1$d，匹配歌曲 %2$d，未找到 %3$d，收藏 %4$d，带流派标签的歌曲 %5$d，歌词 %6$d</string>
+    <string name="lyrics_saved_file">歌词已写入歌曲文件</string>
+    <string name="lyrics_saved_lrc">歌词已保存为歌曲旁的 .lrc 文件</string>
+    <string name="lyrics_saved_both">歌词已写入歌曲文件，并保存了 .lrc 文件</string>
+    <string name="lyrics_saved_only_app_off">歌词只保存在 Lyra 里——打开「写回文件标签」才会写进文件</string>
+    <string name="lyrics_saved_only_app_perm">歌词只保存在 Lyra 里——需要授予「所有文件访问」权限才能写进文件</string>
+    <string name="lyrics_saved_only_app_format">歌词只保存在 Lyra 里——这种格式无法内嵌歌词，打开「同时保存 .lrc 文件」可存到歌曲旁边</string>
+    <string name="lyrics_saved_only_app_failed">歌词已保存在 Lyra 里，但写入文件失败</string>
+    <string name="lyrics_src_embedded">歌词来自歌曲文件</string>
+    <string name="lyrics_src_sidecar">歌词来自 .lrc 文件</string>
+    <string name="lyrics_src_app">歌词保存在 Lyra 中</string>
+    <string name="lyrics_sidecar">同时保存 .lrc 文件</string>
+    <string name="lyrics_sidecar_desc">在歌曲旁边生成「歌名.lrc」，所有格式都适用，几乎所有播放器都能读。</string>
+    <string name="lyrics_write_all">把已保存的歌词写入文件</string>
+    <string name="lyrics_write_all_desc">处理之前只保存在 Lyra 里的歌词</string>
+    <string name="lyrics_write_all_done">完成：写入歌曲文件 %1$d 首，生成 .lrc %2$d 个，未写入 %3$d 首</string>
 </resources>

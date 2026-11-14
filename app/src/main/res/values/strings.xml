@@ -183,5 +183,20 @@
     <string name="backup_import_desc">Merges into the current library; nothing is deleted</string>
     <string name="backup_exported">Backup saved</string>
     <string name="backup_restore_failed">That file is not a Lyra backup</string>
-    <string name="backup_restored">Restored: %1$d new playlists, %2$d tracks matched, %3$d not found, %4$d favourites, %5$d songs with genre tags</string>
+    <string name="backup_restored">Restored: %1$d new playlists, %2$d tracks matched, %3$d not found, %4$d favourites, %5$d songs with genre tags, %6$d lyrics</string>
+    <string name="lyrics_saved_file">Lyrics saved into the song file</string>
+    <string name="lyrics_saved_lrc">Lyrics saved as a .lrc file next to the song</string>
+    <string name="lyrics_saved_both">Lyrics saved into the song file and as a .lrc file</string>
+    <string name="lyrics_saved_only_app_off">Lyrics saved in Lyra only – turn on “Write tags back to files” to put them in the file</string>
+    <string name="lyrics_saved_only_app_perm">Lyrics saved in Lyra only – grant “All files access” to write them into the file</string>
+    <string name="lyrics_saved_only_app_format">Lyrics saved in Lyra only – this format cannot hold lyrics; turn on “.lrc file” to save them next to it</string>
+    <string name="lyrics_saved_only_app_failed">Lyrics saved in Lyra, but writing to the file failed</string>
+    <string name="lyrics_src_embedded">Lyrics from the song file</string>
+    <string name="lyrics_src_sidecar">Lyrics from .lrc file</string>
+    <string name="lyrics_src_app">Lyrics saved in Lyra</string>
+    <string name="lyrics_sidecar">Also save a .lrc file</string>
+    <string name="lyrics_sidecar_desc">Writes “song name.lrc” next to the song. Works for every format and almost every player.</string>
+    <string name="lyrics_write_all">Write saved lyrics into files</string>
+    <string name="lyrics_write_all_desc">For lyrics that so far are only stored inside Lyra</string>
+    <string name="lyrics_write_all_done">Done: %1$d into song files, %2$d .lrc files, %3$d not written</string>
 </resources>

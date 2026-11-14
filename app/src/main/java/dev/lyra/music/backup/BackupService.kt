@@ -38,11 +38,12 @@ import javax.inject.Singleton
     val writeTagsToFile: Boolean, val onlineMetadataMode: Int, val autoOrganise: Boolean, val organiseTemplate: String,
     val dynamicColor: Boolean, val themeMode: Int, val floatingLyrics: Boolean, val minDurationMs: Long,
 )
+@Serializable data class BackupLyrics(val track: BackupTrack, val text: String)
 @Serializable data class BackupManifest(val format: Int = 1, val app: String, val createdAt: Long, val songs: Int)
 
 data class RestoreReport(
     val playlists: Int, val playlistTracksMatched: Int, val playlistTracksMissing: Int,
-    val favourites: Int, val history: Int, val genres: Int, val settings: Boolean,
+    val favourites: Int, val history: Int, val genres: Int, val settings: Boolean, val lyrics: Int = 0,
 )
 
 /**
@@ -57,6 +58,7 @@ class BackupService @Inject constructor(
     private val db: LyraDatabase,
     private val prefs: UserPrefs,
     private val genres: GenreRepository,
+    private val lyricsRepo: dev.lyra.music.lyrics.LyricsRepository,
 ) {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false; encodeDefaults = true }
 
@@ -78,6 +80,10 @@ class BackupService @Inject constructor(
                 val g = db.genreDao().forSong(s.id)
                 if (g.isEmpty()) null else BackupSongGenres(BackupTrack(s.path, s.title, s.artist, s.album, s.durationMs), g.map { it.name })
             }
+            val lyrics = lyricsRepo.savedSongIds().mapNotNull { id ->
+                val s = byId[id] ?: return@mapNotNull null
+                lyricsRepo.savedText(s)?.let { BackupLyrics(BackupTrack(s.path, s.title, s.artist, s.album, s.durationMs), it) }
+            }
             val settings = BackupSettings(
                 prefs.writeTagsToFile.first(), prefs.onlineMetadataMode.first(), prefs.autoOrganise.first(), prefs.organiseTemplate.first(),
                 prefs.dynamicColor.first(), prefs.themeMode.first(), prefs.floatingLyrics.first(), prefs.minDurationMs.first(),
@@ -96,6 +102,7 @@ class BackupService @Inject constructor(
                     put("genres.json", json.encodeToString(genreList))
                     put("song_genres.json", json.encodeToString(songGenres))
                     put("settings.json", json.encodeToString(settings))
+                    put("lyrics.json", json.encodeToString(lyrics))
                     // Playlists again as plain M3U8 so any other player can read them without Lyra.
                     for (p in playlists) {
                         put("m3u/${dev.lyra.music.organize.OrganizeTemplate.safeSegment(p.name).ifBlank { "playlist" }}.m3u8",
@@ -183,6 +190,15 @@ class BackupService @Inject constructor(
                     if (gids.isNotEmpty()) { genres.addToSongs(listOf(id), gids); genreLinks++ }
                 }
             }
+            var lyricsRestored = 0
+            entries["lyrics.json"]?.let { txt ->
+                for (l in json.decodeFromString<List<BackupLyrics>>(txt).take(50_000)) {
+                    val id = find(l.track) ?: continue
+                    val s = db.songDao().getById(id) ?: continue
+                    if (lyricsRepo.savedText(s) != null) continue
+                    lyricsRepo.save(s, l.text.take(64 * 1024)); lyricsRestored++
+                }
+            }
             val settingsOk = entries["settings.json"]?.let { txt ->
                 val s = json.decodeFromString<BackupSettings>(txt)
                 prefs.setWriteTagsToFile(s.writeTagsToFile); prefs.setOnlineMetadataMode(s.onlineMetadataMode.coerceIn(0, 2))
@@ -191,7 +207,7 @@ class BackupService @Inject constructor(
                 prefs.setFloatingLyrics(s.floatingLyrics); prefs.setMinDurationMs(s.minDurationMs.coerceIn(0, 600_000))
                 true
             } ?: false
-            RestoreReport(playlistsMade, matched, missing, favs, hist, genreLinks, settingsOk)
+            RestoreReport(playlistsMade, matched, missing, favs, hist, genreLinks, settingsOk, lyricsRestored)
         }.getOrNull()
     }
 
@@ -209,6 +225,6 @@ class BackupService @Inject constructor(
     private companion object {
         const val MAX_ENTRY_BYTES = 32 * 1024 * 1024
         const val MAX_TOTAL_BYTES = 96L * 1024 * 1024
-        val WANTED = setOf("manifest.json", "playlists.json", "song_state.json", "history.json", "overrides.json", "genres.json", "song_genres.json", "settings.json")
+        val WANTED = setOf("lyrics.json", "manifest.json", "playlists.json", "song_state.json", "history.json", "overrides.json", "genres.json", "song_genres.json", "settings.json")
     }
 }

@@ -7,8 +7,9 @@ import dev.lyra.music.data.db.SongEntity
 import dev.lyra.music.data.repo.LibraryRepository
 import dev.lyra.music.lyrics.LoadedLyrics
 import dev.lyra.music.data.prefs.UserPrefs
-import dev.lyra.music.data.scanner.TagWriter
 import dev.lyra.music.lyrics.LyricsRepository
+import dev.lyra.music.lyrics.LyricsSaveOutcome
+import dev.lyra.music.lyrics.LyricsSaver
 import dev.lyra.music.lyrics.LyricsSource
 import dev.lyra.music.online.LyricsCandidate
 import dev.lyra.music.online.LyricsQuery
@@ -43,7 +44,7 @@ class PlayerViewModel @Inject constructor(
     private val queuePersistence: QueuePersistence,
     private val lyricsRepository: LyricsRepository,
     private val lyricsSearch: LyricsSearchService,
-    private val tagWriter: TagWriter,
+    private val lyricsSaver: LyricsSaver,
     private val prefs: UserPrefs,
 ) : ViewModel() {
 
@@ -84,10 +85,12 @@ class PlayerViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private suspend fun saveLyrics(song: SongEntity, text: String) {
-        lyricsRepository.save(song, text)
-        if (song.cueIndex == 0 && prefs.writeTagsToFile.first()) tagWriter.writeLyrics(song.path, text)
-    }
+    private suspend fun saveLyrics(song: SongEntity, text: String): LyricsSaveOutcome = lyricsSaver.save(song, text)
+
+    /** Result of the last manual "use these lyrics", shown to the user once. */
+    private val _lyricsSaved = MutableStateFlow<LyricsSaveOutcome?>(null)
+    val lyricsSaved: StateFlow<LyricsSaveOutcome?> = _lyricsSaved.asStateFlow()
+    fun consumeLyricsSaved() { _lyricsSaved.value = null }
 
     // ---- Manual online search ---------------------------------------------------------------
 
@@ -139,7 +142,7 @@ class PlayerViewModel @Inject constructor(
         val song = currentSong.value ?: return
         val text = _lyricsSearchUi.value.previewText ?: return
         viewModelScope.launch {
-            saveLyrics(song, text)
+            _lyricsSaved.value = saveLyrics(song, text)
             library.setLyricsOffset(song.id, 0)
             lyricsReload.update { it + 1 }
         }
