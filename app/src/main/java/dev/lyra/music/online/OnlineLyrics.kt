@@ -12,11 +12,12 @@ enum class OnlineSource(val label: String) {
     LRCLIB("LRCLIB"),
     NETEASE("网易云"),
     QQ("QQ音乐"),
+    KUGOU("酷狗"),
     MUSICBRAINZ("MusicBrainz");
 
     companion object {
         /** Sources that can provide lyrics. */
-        val LYRICS: List<OnlineSource> = listOf(LRCLIB, NETEASE, QQ)
+        val LYRICS: List<OnlineSource> = listOf(LRCLIB, NETEASE, QQ, KUGOU)
         /** Sources that can provide song information and cover art. */
         val METADATA: List<OnlineSource> = listOf(NETEASE, QQ, MUSICBRAINZ)
     }
@@ -144,6 +145,41 @@ object OnlineParsers {
             ?: return null
         val translation = root.str("trans")?.let(::maybeBase64)?.let(::unescapeEntities)?.takeIf { it.isNotBlank() }
         return FetchedLyrics(original.take(MAX_LYRICS_CHARS), translation?.take(MAX_LYRICS_CHARS))
+    }
+
+    // ---- Kugou ---------------------------------------------------------------------------------
+
+    /**
+     * `lyrics.kugou.com/search` response. The id handed back is "id|accesskey" because both are
+     * needed to download. Kugou's lyric search is a lyrics index of its own, so it often finds
+     * songs the other services miss.
+     */
+    fun kugouSearch(body: String): List<LyricsCandidate> {
+        val root = parse(body) as? JsonObject ?: return emptyList()
+        val list = root["candidates"] as? JsonArray ?: return emptyList()
+        return list.take(MAX_RESULTS).mapNotNull { e ->
+            val o = e as? JsonObject ?: return@mapNotNull null
+            val id = o.str("id")?.takeIf { it.isNotEmpty() && it.length <= 32 && it.all(Char::isLetterOrDigit) } ?: return@mapNotNull null
+            val key = o.str("accesskey")?.takeIf { it.isNotEmpty() && it.length <= 64 && it.all(Char::isLetterOrDigit) } ?: return@mapNotNull null
+            LyricsCandidate(
+                source = OnlineSource.KUGOU,
+                id = "$id|$key",
+                title = o.field("song") ?: return@mapNotNull null,
+                artist = o.field("singer").orEmpty(),
+                album = "",
+                durationMs = o.long("duration") ?: 0L,
+                synced = true,
+            )
+        }
+    }
+
+    /** `lyrics.kugou.com/download?fmt=lrc` response: base64 LRC in `content`. */
+    fun kugouLyric(body: String): FetchedLyrics? {
+        val root = parse(body) as? JsonObject ?: return null
+        val content = root.str("content")?.takeIf { it.isNotBlank() } ?: return null
+        val text = runCatching { String(java.util.Base64.getDecoder().decode(content.trim()), Charsets.UTF_8) }.getOrNull()
+            ?.removePrefix("\uFEFF")?.takeIf { it.isNotBlank() } ?: return null
+        return FetchedLyrics(text.take(MAX_LYRICS_CHARS))
     }
 
     // ---- helpers ------------------------------------------------------------------------------

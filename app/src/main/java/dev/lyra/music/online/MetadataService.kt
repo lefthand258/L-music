@@ -108,7 +108,7 @@ class MetadataService @Inject constructor(
                     .addQueryParameter("query", MetadataParsers.musicBrainzQuery(q.title, q.artist))
                     .addQueryParameter("fmt", "json").addQueryParameter("limit", "8").build(),
             )?.let(MetadataParsers::musicBrainz).orEmpty()
-            OnlineSource.LRCLIB -> emptyList()
+            OnlineSource.LRCLIB, OnlineSource.KUGOU -> emptyList()
         }
     }
 

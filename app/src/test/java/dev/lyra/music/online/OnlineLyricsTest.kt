@@ -98,4 +98,18 @@ class OnlineLyricsTest {
         assertEquals("Title" to "Artist", FileNameGuess.guess("12 - Artist - Title.ape"))
         assertEquals("noext" to "", FileNameGuess.guess("noext"))
     }
+
+    @Test fun kugou_search_and_download() {
+        val r = OnlineParsers.kugouSearch("""{"status":200,"info":"OK","candidates":[
+            {"id":"123456","accesskey":"ABCDEF0123","song":"晴天","singer":"周杰伦","duration":269000,"score":60},
+            {"id":"../x","accesskey":"k","song":"bad"},
+            {"id":"7","song":"no key"}]}""")
+        assertEquals(1, r.size)
+        assertEquals("123456|ABCDEF0123", r[0].id); assertEquals(OnlineSource.KUGOU, r[0].source)
+        assertEquals("周杰伦", r[0].artist); assertEquals(269_000L, r[0].durationMs)
+        val b64 = java.util.Base64.getEncoder().encodeToString("\uFEFF[00:01.00]甲\n[00:02.00]乙".toByteArray())
+        assertEquals("[00:01.00]甲\n[00:02.00]乙", OnlineParsers.kugouLyric("""{"status":200,"content":"$b64","fmt":"lrc"}""")!!.original)
+        assertNull(OnlineParsers.kugouLyric("""{"status":404,"content":""}"""))
+        assertTrue(OnlineParsers.kugouSearch("""{"status":404}""").isEmpty())
+    }
 }

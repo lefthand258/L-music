@@ -73,8 +73,18 @@ class LyricsSearchService @Inject constructor(
                     "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg".toHttpUrl().newBuilder()
                         .addQueryParameter("songmid", candidate.id)
                         .addQueryParameter("format", "json").addQueryParameter("nobase64", "1").build(),
-                    referer = "https://y.qq.com/",
+                    // The lyric endpoint answers -1310 unless the request looks like it comes from the web player.
+                    referer = "https://y.qq.com/portal/player.html",
                 )?.let(OnlineParsers::qqLyric)
+                OnlineSource.KUGOU -> {
+                    val (id, key) = candidate.id.split('|').let { (it.getOrNull(0) ?: "") to (it.getOrNull(1) ?: "") }
+                    if (id.isEmpty() || key.isEmpty()) null else get(
+                        "https://lyrics.kugou.com/download".toHttpUrl().newBuilder()
+                            .addQueryParameter("ver", "1").addQueryParameter("client", "pc")
+                            .addQueryParameter("id", id).addQueryParameter("accesskey", key)
+                            .addQueryParameter("fmt", "lrc").addQueryParameter("charset", "utf8").build(),
+                    )?.let(OnlineParsers::kugouLyric)
+                }
                 OnlineSource.MUSICBRAINZ -> null
             } ?: return@runCatching null
             normalise(fetched)
@@ -126,6 +136,15 @@ class LyricsSearchService @Inject constructor(
                 .addQueryParameter("w", keywords(q)).addQueryParameter("format", "json")
                 .addQueryParameter("p", "1").addQueryParameter("n", "15").build()
             get(url, referer = "https://y.qq.com/")?.let(OnlineParsers::qqSearch).orEmpty()
+        }
+        OnlineSource.KUGOU -> {
+            val keyword = if (q.artist.isNotBlank()) "${q.artist} - ${q.title}" else q.title
+            val url = "https://lyrics.kugou.com/search".toHttpUrl().newBuilder()
+                .addQueryParameter("ver", "1").addQueryParameter("man", "yes").addQueryParameter("client", "pc")
+                .addQueryParameter("keyword", keyword.take(120))
+                .addQueryParameter("duration", if (q.durationMs > 0) q.durationMs.toString() else "")
+                .addQueryParameter("hash", "").build()
+            get(url)?.let(OnlineParsers::kugouSearch).orEmpty()
         }
         OnlineSource.MUSICBRAINZ -> emptyList() // no lyrics there
     }

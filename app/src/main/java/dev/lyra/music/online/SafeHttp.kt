@@ -84,7 +84,7 @@ class SafeHttp @Inject constructor() {
     private companion object {
         const val MAX_TEXT_BYTES = 2L * 1024 * 1024
         const val MAX_IMAGE_BYTES = 15L * 1024 * 1024
-        val API_HOSTS = setOf("lrclib.net", "music.163.com", "c.y.qq.com", "musicbrainz.org")
+        val API_HOSTS = setOf("lrclib.net", "music.163.com", "c.y.qq.com", "lyrics.kugou.com", "musicbrainz.org")
         val USER_AGENT = "LyraMusic/${BuildConfig.VERSION_NAME} (https://github.com/lefthand258/L-music)"
     }
 }
