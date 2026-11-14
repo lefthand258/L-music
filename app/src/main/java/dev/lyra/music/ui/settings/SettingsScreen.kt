@@ -46,7 +46,18 @@ import dev.lyra.music.R
 import dev.lyra.music.data.prefs.UserPrefs
 import dev.lyra.music.data.repo.LibraryRepository
 import dev.lyra.music.data.repo.ScanState
+import android.app.Activity
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import dev.lyra.music.util.AppLanguage
 import androidx.compose.runtime.rememberCoroutineScope
 import dev.lyra.music.backup.BackupService
 import dev.lyra.music.backup.RestoreReport
@@ -74,6 +85,12 @@ class SettingsViewModel @Inject constructor(
     private val backup: BackupService,
     private val lyricsSaver: LyricsSaver,
 ) : ViewModel() {
+    val floatLocked = prefs.floatLocked.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val floatClearBg = prefs.floatClearBg.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val floatColor = prefs.floatColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    fun setFloatLocked(v: Boolean) = viewModelScope.launch { prefs.setFloatLocked(v) }
+    fun setFloatClearBg(v: Boolean) = viewModelScope.launch { prefs.setFloatClearBg(v) }
+    fun setFloatColor(v: Int) = viewModelScope.launch { prefs.setFloatColor(v) }
     val lyricsSidecar = prefs.lyricsSidecar.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
     fun setLyricsSidecar(v: Boolean) = viewModelScope.launch { prefs.setLyricsSidecar(v) }
     val writeAll = lyricsSaver.writeAll
@@ -114,7 +131,7 @@ class SettingsViewModel @Inject constructor(
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, onOpenOrganize: () -> Unit = {}, vm: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, onOpenOrganize: () -> Unit = {}, onOpenSound: () -> Unit = {}, vm: SettingsViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
     val dynamic by vm.dynamicColor.collectAsStateWithLifecycle()
@@ -126,6 +143,9 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, onOpenOrgan
     val battery = rememberPermissionState { Permissions.isIgnoringBatteryOptimizations(context) }
     val floatingOn by vm.floatingOn.collectAsStateWithLifecycle()
     val sidecarOn by vm.lyricsSidecar.collectAsStateWithLifecycle()
+    val floatLocked by vm.floatLocked.collectAsStateWithLifecycle()
+    val floatClearBg by vm.floatClearBg.collectAsStateWithLifecycle()
+    val floatColor by vm.floatColor.collectAsStateWithLifecycle()
     val writeAll by vm.writeAll.collectAsStateWithLifecycle()
     val overlayGranted = rememberPermissionState { vm.floatingLyrics.hasPermission() }
     val scope = rememberCoroutineScope()
@@ -309,6 +329,55 @@ fun SettingsScreen(onBack: () -> Unit, bottomPadding: PaddingValues, onOpenOrgan
                     else vm.setFloating(!floatingOn)
                 },
             )
+            if (floatingOn && overlayGranted) {
+                ToggleRow(
+                    title = stringResource(R.string.float_lock),
+                    subtitle = stringResource(R.string.float_lock_desc),
+                    checked = floatLocked, onToggle = { vm.setFloatLocked(!floatLocked) },
+                )
+                ToggleRow(
+                    title = stringResource(R.string.float_clear_bg),
+                    subtitle = null,
+                    checked = floatClearBg, onToggle = { vm.setFloatClearBg(!floatClearBg) },
+                )
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(stringResource(R.string.float_color), Modifier.weight(1f))
+                    FloatingLyricsController.COLORS.forEachIndexed { i, c ->
+                        Box(
+                            Modifier.padding(start = 8.dp).size(if (i == floatColor) 30.dp else 24.dp)
+                                .clip(CircleShape).background(Color(c))
+                                .border(if (i == floatColor) 2.dp else 1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                .clickable { vm.setFloatColor(i) }
+                        )
+                    }
+                }
+            }
+            HorizontalDivider()
+
+            Section(stringResource(R.string.sound_title))
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.sound_title)) },
+                supportingContent = { Text(stringResource(R.string.sound_settings_desc)) },
+                modifier = Modifier.clickable(onClick = onOpenSound)
+            )
+            HorizontalDivider()
+
+            Section(stringResource(R.string.language))
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                val lang = remember { mutableStateOf(AppLanguage.current(context)) }
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    listOf("" to stringResource(R.string.language_system), "zh" to "中文", "en" to "English").forEachIndexed { i, (tag, label) ->
+                        SegmentedButton(
+                            selected = lang.value == tag,
+                            onClick = {
+                                lang.value = tag
+                                (context as? Activity ?: (context as? android.content.ContextWrapper)?.baseContext as? Activity)?.let { AppLanguage.set(it, tag) }
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(i, 3)
+                        ) { Text(label, style = MaterialTheme.typography.labelSmall) }
+                    }
+                }
+            }
             HorizontalDivider()
 
             Section("Appearance / 外观")

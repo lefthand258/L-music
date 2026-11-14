@@ -8,7 +8,16 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import android.os.Bundle
+import android.widget.Toast
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import dev.lyra.music.R
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import androidx.media3.session.MediaSessionService
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
@@ -42,6 +51,8 @@ class PlaybackService : MediaSessionService() {
     @Inject lateinit var library: LibraryRepository
     @Inject lateinit var queuePersistence: QueuePersistence
     @Inject lateinit var floatingLyrics: dev.lyra.music.lyrics.FloatingLyricsController
+    @Inject lateinit var prefs: dev.lyra.music.data.prefs.UserPrefs
+    private var soundEffects: SoundEffects? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var mediaSession: MediaSession? = null
@@ -72,11 +83,53 @@ class PlaybackService : MediaSessionService() {
             .setSessionActivity(sessionActivity)
             .setCallback(SessionCallback())
             .build()
+
+        soundEffects = SoundEffects(player, prefs, scope).also { it.start() }
+
+        // Notification / lock-screen button for the floating lyrics: open → (if locked) unlock → close.
+        scope.launch {
+            combine(prefs.floatingLyrics, prefs.floatLocked) { on, locked -> on to locked }
+                .distinctUntilChanged()
+                .collect { (on, locked) -> mediaSession?.setCustomLayout(ImmutableList.of(lyricsButton(on, locked))) }
+        }
+    }
+
+    private fun lyricsButton(on: Boolean, locked: Boolean): CommandButton {
+        val (label, icon) = when {
+            !on -> R.string.float_action_open to R.drawable.ic_lyrics_off
+            locked -> R.string.float_action_unlock to R.drawable.ic_lyrics_unlock
+            else -> R.string.float_action_close to R.drawable.ic_lyrics_on
+        }
+        return CommandButton.Builder()
+            .setDisplayName(getString(label))
+            .setIconResId(icon)
+            .setSessionCommand(LYRICS_COMMAND)
+            .build()
+    }
+
+    private fun onLyricsButton() {
+        scope.launch {
+            val on = prefs.floatingLyrics.first()
+            val locked = prefs.floatLocked.first()
+            when {
+                !on -> {
+                    if (floatingLyrics.hasPermission()) {
+                        prefs.setFloatLocked(false); prefs.setFloatingLyrics(true)
+                    } else {
+                        Toast.makeText(this@PlaybackService, R.string.floating_lyrics_permission, Toast.LENGTH_LONG).show()
+                    }
+                }
+                locked -> prefs.setFloatLocked(false)
+                else -> prefs.setFloatingLyrics(false)
+            }
+        }
     }
 
     private fun buildPlayer(): ExoPlayer {
         val renderers = DefaultRenderersFactory(this)
             .setEnableAudioFloatOutput(true)
+            // Speed / pitch through the audio track itself, so they work with float output.
+            .setEnableAudioTrackPlaybackParams(true)
             .setEnableDecoderFallback(true)
             // ON: platform decoders first; an FFmpeg extension renderer (added in a later sprint)
             // picks up the formats the platform cannot decode (APE, DSD, WavPack, TTA, WMA…).
@@ -109,6 +162,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         scope.launch { queuePersistence.saveNow(player) }
+        soundEffects?.release()
         mediaSession?.run {
             player.release()
             release()
@@ -118,7 +172,27 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
+    companion object {
+        val LYRICS_COMMAND = SessionCommand("dev.lyra.music.TOGGLE_FLOATING_LYRICS", Bundle.EMPTY)
+    }
+
     private inner class SessionCallback : MediaSession.Callback {
+
+        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+            val base = super.onConnect(session, controller)
+            return MediaSession.ConnectionResult.accept(
+                base.availableSessionCommands.buildUpon().add(LYRICS_COMMAND).build(),
+                base.availablePlayerCommands,
+            )
+        }
+
+        override fun onCustomCommand(
+            session: MediaSession, controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand, args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            if (customCommand.customAction == LYRICS_COMMAND.customAction) onLyricsButton()
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
 
         /**
          * Controllers may hand us items that carry only a mediaId (e.g. Bluetooth / system UI

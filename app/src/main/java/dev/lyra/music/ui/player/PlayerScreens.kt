@@ -136,7 +136,7 @@ fun MiniPlayer(vm: PlayerViewModel, onExpand: () -> Unit, modifier: Modifier = M
 }
 
 @Composable
-fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (SongEntity) -> Unit = {}, onSetGenres: (SongEntity) -> Unit = {}, onEdit: (SongEntity) -> Unit = {}) {
+fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (SongEntity) -> Unit = {}, onSetGenres: (SongEntity) -> Unit = {}, onEdit: (SongEntity) -> Unit = {}, onOpenSound: () -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val song by vm.currentSong.collectAsStateWithLifecycle()
     var showQueue by remember { mutableStateOf(false) }
@@ -254,6 +254,16 @@ fun NowPlayingScreen(vm: PlayerViewModel, onCollapse: () -> Unit, onIdentify: (S
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (summary.isNotBlank()) AssistChip(onClick = {}, label = { Text(summary, style = MaterialTheme.typography.labelSmall) })
+                    val dsp by vm.dspActive.collectAsStateWithLifecycle()
+                    AssistChip(
+                        onClick = onOpenSound,
+                        label = {
+                            Text(
+                                stringResource(if (dsp) R.string.dsp_active else R.string.sound_eq), style = MaterialTheme.typography.labelSmall,
+                                color = if (dsp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                    )
                     GenreChips(songId = s.id, onClick = { onSetGenres(s) })
                 }
             }

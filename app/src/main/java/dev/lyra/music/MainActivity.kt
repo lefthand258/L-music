@@ -25,6 +25,10 @@ class MainActivity : ComponentActivity() {
     /** Incremented whenever an "open player" intent arrives so the UI can react. */
     private var openPlayerSignal by mutableStateOf(0)
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(dev.lyra.music.util.AppLanguage.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)

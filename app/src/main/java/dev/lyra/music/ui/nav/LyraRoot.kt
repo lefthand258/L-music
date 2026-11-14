@@ -65,6 +65,7 @@ import dev.lyra.music.ui.playlist.PlaylistsTab
 import dev.lyra.music.ui.playlist.SmartList
 import dev.lyra.music.ui.settings.OrganizeScreen
 import dev.lyra.music.ui.settings.SettingsScreen
+import dev.lyra.music.ui.settings.SoundScreen
 import dev.lyra.music.ui.settings.SettingsViewModel
 import kotlinx.coroutines.launch
 
@@ -79,6 +80,7 @@ private object Routes {
     const val GENRE = "genre/{id}"
     const val GENRES_MANAGE = "genres/manage"
     const val ORGANIZE = "organize"
+    const val SOUND = "sound"
     fun genre(id: Long) = "genre/$id"
     fun album(id: Long) = "album/$id"
     fun artist(id: Long) = "artist/$id"
@@ -327,7 +329,10 @@ private fun MainScaffold(openPlayerSignal: Int) {
                 GenreManageScreen(bottomPadding = bottomPadding, onBack = { nav.popBackStack() }, vm = genreVm)
             }
             composable(Routes.SETTINGS) {
-                SettingsScreen(onBack = { nav.popBackStack() }, bottomPadding = bottomPadding, onOpenOrganize = { nav.navigate(Routes.ORGANIZE) })
+                SettingsScreen(onBack = { nav.popBackStack() }, bottomPadding = bottomPadding, onOpenOrganize = { nav.navigate(Routes.ORGANIZE) }, onOpenSound = { nav.navigate(Routes.SOUND) })
+            }
+            composable(Routes.SOUND) {
+                SoundScreen(bottomPadding = bottomPadding, onBack = { nav.popBackStack() })
             }
             composable(Routes.ORGANIZE) {
                 OrganizeScreen(bottomPadding = bottomPadding, onBack = { nav.popBackStack() })
@@ -348,7 +353,7 @@ private fun MainScaffold(openPlayerSignal: Int) {
             enter = slideInVertically(tween(260)) { it } + fadeIn(tween(200)),
             exit = slideOutVertically(tween(220)) { it } + fadeOut(tween(160)),
         ) {
-            NowPlayingScreen(playerVm, onCollapse = { playerExpanded = false }, onIdentify = { identifySong = it }, onSetGenres = { genreSong = it }, onEdit = { editSong = it })
+            NowPlayingScreen(playerVm, onCollapse = { playerExpanded = false }, onIdentify = { identifySong = it }, onSetGenres = { genreSong = it }, onEdit = { editSong = it }, onOpenSound = { playerExpanded = false; nav.navigate(Routes.SOUND) })
         }
     }
 

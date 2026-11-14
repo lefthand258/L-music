@@ -43,7 +43,9 @@ import kotlin.math.abs
 /**
  * Desktop floating lyrics: a small draggable overlay showing the current line (and translation)
  * on top of other apps. Shown while the setting is on, the overlay permission is granted, the
- * player has a song and Lyra itself is not in the foreground. Double-tap opens Lyra.
+ * player has a song and Lyra itself is not in the foreground. Tap shows a control strip (lock,
+ * size, colour, background, close); double-tap opens Lyra. When locked the window lets touches
+ * through to whatever is underneath and can only be unlocked from the notification or settings.
  *
  * Plain Android views are used on purpose: an overlay window has no Compose host lifecycle.
  */
@@ -67,6 +69,12 @@ class FloatingLyricsController @Inject constructor(
     private var offsetMs = 0L
     private var lastIndex = Int.MIN_VALUE
     private var lyricsJob: Job? = null
+    private var controls: LinearLayout? = null
+    private var hideControlsJob: Job? = null
+    private var locked = false
+    private var colorIndex = 0
+    private var clearBg = false
+    private var sizeSp = 18
 
     fun hasPermission(): Boolean = Settings.canDrawOverlays(context)
 
@@ -106,6 +114,12 @@ class FloatingLyricsController @Inject constructor(
         scope.launch {
             player.state.collect { st -> render(st.positionMs) }
         }
+        // Look and lock state.
+        scope.launch { prefs.floatLocked.collect { locked = it; applyStyle() } }
+        scope.launch { prefs.floatColor.collect { colorIndex = it.mod(COLORS.size); applyStyle() } }
+        scope.launch { prefs.floatClearBg.collect { clearBg = it; applyStyle() } }
+        scope.launch { prefs.floatSizeSp.collect { sizeSp = it; applyStyle() } }
+        scope.launch { prefs.floatY.collect { y -> if (y >= 0 && view == null) savedY = y } }
     }
 
     private fun loadLyrics(song: SongEntity?) {
@@ -173,6 +187,30 @@ class FloatingLyricsController @Inject constructor(
             addView(main)
             addView(sub)
         }
+        val bar = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            setPadding(0, dp(6f).toInt(), 0, 0)
+            fun button(label: String, onClick: () -> Unit) = TextView(context).apply {
+                text = label
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setPadding(dp(10f).toInt(), dp(6f).toInt(), dp(10f).toInt(), dp(6f).toInt())
+                background = GradientDrawable().apply { cornerRadius = dp(10f); setColor(Color.argb(170, 40, 40, 40)) }
+                val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.marginStart = dp(3f).toInt(); lp.marginEnd = dp(3f).toInt()
+                layoutParams = lp
+                setOnClickListener { onClick(); scheduleHideControls() }
+            }
+            addView(button(context.getString(dev.lyra.music.R.string.float_lock)) { scope.launch { prefs.setFloatLocked(true) } })
+            addView(button("A−") { scope.launch { prefs.setFloatSizeSp(sizeSp - 2) } })
+            addView(button("A+") { scope.launch { prefs.setFloatSizeSp(sizeSp + 2) } })
+            addView(button(context.getString(dev.lyra.music.R.string.float_color)) { scope.launch { prefs.setFloatColor((colorIndex + 1) % COLORS.size) } })
+            addView(button(context.getString(dev.lyra.music.R.string.float_background)) { scope.launch { prefs.setFloatClearBg(!clearBg) } })
+            addView(button("✕") { scope.launch { prefs.setFloatingLyrics(false) } })
+        }
+        layout.addView(bar)
         val p = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -190,7 +228,8 @@ class FloatingLyricsController @Inject constructor(
             runCatching { wm.updateViewLayout(layout, params) }
         })
         runCatching { wm.addView(layout, p) }.onFailure { return }
-        view = layout; mainText = main; subText = sub; params = p
+        view = layout; mainText = main; subText = sub; params = p; controls = bar
+        applyStyle()
         lastIndex = Int.MIN_VALUE
         render(player.state.value.positionMs)
     }
@@ -198,7 +237,40 @@ class FloatingLyricsController @Inject constructor(
     private fun detach() {
         val v = view ?: return
         runCatching { wm.removeViewImmediate(v) }
-        view = null; mainText = null; subText = null; params = null
+        view = null; mainText = null; subText = null; params = null; controls = null
+        hideControlsJob?.cancel()
+    }
+
+    /** Applies colour, size, background and the locked (click-through) state to the live window. */
+    private fun applyStyle() {
+        val v = view ?: return
+        val p = params ?: return
+        val color = COLORS[colorIndex.mod(COLORS.size)]
+        mainText?.setTextColor(color)
+        mainText?.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp.toFloat())
+        subText?.setTextColor(Color.argb(230, Color.red(color), Color.green(color), Color.blue(color)))
+        subText?.setTextSize(TypedValue.COMPLEX_UNIT_SP, (sizeSp - 4).coerceAtLeast(10).toFloat())
+        (v.background as? GradientDrawable)?.setColor(if (clearBg) Color.TRANSPARENT else Color.argb(150, 0, 0, 0))
+        val touchable = WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        val newFlags = if (locked) p.flags or touchable else p.flags and touchable.inv()
+        if (locked) controls?.visibility = View.GONE
+        if (newFlags != p.flags) p.flags = newFlags
+        runCatching { wm.updateViewLayout(v, p) }
+    }
+
+    private fun toggleControls() {
+        val c = controls ?: return
+        if (locked) return
+        c.visibility = if (c.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        if (c.visibility == View.VISIBLE) scheduleHideControls() else hideControlsJob?.cancel()
+    }
+
+    private fun scheduleHideControls() {
+        hideControlsJob?.cancel()
+        hideControlsJob = scope.launch {
+            kotlinx.coroutines.delay(5_000)
+            controls?.visibility = View.GONE
+        }
     }
 
     private var savedY: Int = (context.resources.displayMetrics.heightPixels * 0.12f).toInt()
@@ -223,7 +295,9 @@ class FloatingLyricsController @Inject constructor(
                     onMove(p)
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!moved) {
+                    if (moved) {
+                        scope.launch { prefs.setFloatY(p.y) }
+                    } else {
                         val now = System.currentTimeMillis()
                         if (now - lastTapAt < 350) {
                             context.startActivity(
@@ -232,7 +306,7 @@ class FloatingLyricsController @Inject constructor(
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                                 }
                             )
-                        }
+                        } else toggleControls()
                         lastTapAt = now
                     }
                     v.performClick()
@@ -240,5 +314,13 @@ class FloatingLyricsController @Inject constructor(
             }
             return true
         }
+    }
+
+    companion object {
+        /** Text colours the user can cycle through. */
+        val COLORS = intArrayOf(
+            Color.WHITE, Color.rgb(245, 198, 107), Color.rgb(120, 220, 160), Color.rgb(120, 190, 255),
+            Color.rgb(255, 140, 170), Color.rgb(255, 110, 90), Color.rgb(190, 150, 255),
+        )
     }
 }
